@@ -85,10 +85,14 @@ void perform_loop(void)
     int i;
     unsigned long long int time;
     struct timespec start, end;
-    int max_i = 1000000000/NB/NB;
+    int max_i = 1000000000/NB/NB/10;
     if(max_i > 1024)
     {
        max_i = 1024;
+    }
+    else if (max_i < 5)
+    {
+       max_i = 5;
     }
 
     A = init_matrix();
