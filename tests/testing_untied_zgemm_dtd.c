@@ -23,7 +23,7 @@ static int check_solution( parsec_context_t *parsec, int loud,
                            parsec_matrix_block_cyclic_t *dcCfinal );
 
 static int
-parsec_core_gemm(parsec_execution_stream_t *es, parsec_task_t *this_task)
+parsec_core_gemm_rec(parsec_execution_stream_t *es, parsec_task_t *this_task)
 {
     (void)es;
     int transA;
@@ -47,6 +47,10 @@ parsec_core_gemm(parsec_execution_stream_t *es, parsec_task_t *this_task)
                alpha,  A, lda,
                        B, ldb,
                beta,   C, ldc);
+
+    // int tempkn = k == dcA.super.nt-1 ? dcA.super.n-k*dcA.super.nb : dcA.super.nb;
+    // int ldbk = BLKLDD(&dcB.super, k);
+    dplasma_complex64_t zbeta = 0;
 
     return PARSEC_HOOK_RETURN_DONE;
 }
@@ -73,15 +77,12 @@ int main(int argc, char ** argv)
     iparam_default_gemm(iparam);
     iparam_default_ibnbmb(iparam, 0, 200, 200);
     iparam[IPARAM_NGPUS] = DPLASMA_ERR_NOT_SUPPORTED;
-    // iparam[2] = 18;
 
     /* Initialize PaRSEC */
-    // iparam[2] = 1;
     parsec = setup_parsec(argc, argv, iparam);
     PASTE_CODE_IPARAM_LOCALS(iparam);
 
     PASTE_CODE_FLOPS(FLOPS_ZGEMM, ((DagDouble_t)M,(DagDouble_t)N,(DagDouble_t)K));
-    // iparam[2] = 1;
 
     LDA = max(LDA, max(M, K));
     LDB = max(LDB, max(K, N));
@@ -165,8 +166,10 @@ int main(int argc, char ** argv)
                             tempkn = k == dcA.super.nt-1 ? dcA.super.n-k*dcA.super.nb : dcA.super.nb;
                             ldbk = BLKLDD(&dcB.super, k);
                             zbeta = k == 0 ? beta : zone;
+                            printf("tempkn=%d\ttempmm=%d\ttempnn=%d\n", tempkn, tempmm, tempnn);
+                            printf("ldbk=%d\n", ldbk);
 
-                            parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm,  0, PARSEC_DEV_CPU, "Gemm",
+                            parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm_rec,  0, PARSEC_DEV_CPU, "Gemm",
                                      sizeof(int),           &tA,                           PARSEC_VALUE,
                                      sizeof(int),           &tB,                           PARSEC_VALUE,
                                      sizeof(int),           &tempmm,                       PARSEC_VALUE,
@@ -177,86 +180,6 @@ int main(int argc, char ** argv)
                                      sizeof(int),           &ldam,                         PARSEC_VALUE,
                                      PASSED_BY_REF,     PARSEC_DTD_TILE_OF(B, k, n),     PARSEC_INPUT | TILE_FULL,
                                      sizeof(int),           &ldbk,                         PARSEC_VALUE,
-                                     sizeof(dplasma_complex64_t),           &zbeta,         PARSEC_VALUE,
-                                     PASSED_BY_REF,     PARSEC_DTD_TILE_OF(C, m, n),     PARSEC_INOUT | TILE_FULL | PARSEC_AFFINITY,
-                                     sizeof(int),           &ldcm,                         PARSEC_VALUE,
-                                               PARSEC_DTD_ARG_END );
-                        }
-                    }
-                    /*
-                     *  A: dplasmaNoTrans / B: dplasma[Conj]Trans
-                     */
-                    else {
-                        ldbn = BLKLDD(&dcB.super, n);
-                        for( k = 0; k < dcA.super.nt; k++ ) {
-                            tempkn = k == dcA.super.nt-1 ? dcA.super.n-k*dcA.super.nb : dcA.super.nb;
-                            zbeta = k == 0 ? beta : zone;
-
-                            parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm,  0, PARSEC_DEV_CPU, "Gemm",
-                                     sizeof(int),           &tA,                           PARSEC_VALUE,
-                                     sizeof(int),           &tB,                           PARSEC_VALUE,
-                                     sizeof(int),           &tempmm,                       PARSEC_VALUE,
-                                     sizeof(int),           &tempnn,                       PARSEC_VALUE,
-                                     sizeof(int),           &tempkn,                       PARSEC_VALUE,
-                                     sizeof(dplasma_complex64_t),           &alpha,         PARSEC_VALUE,
-                                     PASSED_BY_REF,     PARSEC_DTD_TILE_OF(A, m, k),     PARSEC_INPUT | TILE_FULL,
-                                     sizeof(int),           &ldam,                         PARSEC_VALUE,
-                                     PASSED_BY_REF,     PARSEC_DTD_TILE_OF(B, n, k),     PARSEC_INPUT | TILE_FULL,
-                                     sizeof(int),           &ldbn,                         PARSEC_VALUE,
-                                     sizeof(dplasma_complex64_t),           &zbeta,         PARSEC_VALUE,
-                                     PASSED_BY_REF,     PARSEC_DTD_TILE_OF(C, m, n),     PARSEC_INOUT | TILE_FULL | PARSEC_AFFINITY,
-                                     sizeof(int),           &ldcm,                         PARSEC_VALUE,
-                                               PARSEC_DTD_ARG_END );
-                        }
-                    }
-                }
-                /*
-                 *  A: dplasma[Conj]Trans / B: dplasmaNoTrans
-                 */
-                else {
-                    if( tB == dplasmaNoTrans ) {
-                        for( k = 0; k < dcA.super.mt; k++ ) {
-                            ldak = BLKLDD(&dcA.super, k);
-                            ldbk = BLKLDD(&dcB.super, k);
-                            zbeta = k == 0 ? beta : zone;
-
-                            parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm, 0,  PARSEC_DEV_CPU, "Gemm",
-                                     sizeof(int),           &tA,                           PARSEC_VALUE,
-                                     sizeof(int),           &tB,                           PARSEC_VALUE,
-                                     sizeof(int),           &tempmm,                       PARSEC_VALUE,
-                                     sizeof(int),           &tempnn,                       PARSEC_VALUE,
-                                     sizeof(int),           &tempkn,                       PARSEC_VALUE,
-                                     sizeof(dplasma_complex64_t),           &alpha,         PARSEC_VALUE,
-                                     PASSED_BY_REF,     PARSEC_DTD_TILE_OF(A, k, m ),     PARSEC_INPUT | TILE_FULL,
-                                     sizeof(int),           &ldak,                         PARSEC_VALUE,
-                                     PASSED_BY_REF,     PARSEC_DTD_TILE_OF(B, k, n),     PARSEC_INPUT | TILE_FULL,
-                                     sizeof(int),           &ldbk,                         PARSEC_VALUE,
-                                     sizeof(dplasma_complex64_t),           &zbeta,         PARSEC_VALUE,
-                                     PASSED_BY_REF,     PARSEC_DTD_TILE_OF(C, m, n),     PARSEC_INOUT | TILE_FULL | PARSEC_AFFINITY,
-                                     sizeof(int),           &ldcm,                         PARSEC_VALUE,
-                                               PARSEC_DTD_ARG_END );
-                        }
-                    }
-                    /*
-                     *  A: dplasma[Conj]Trans / B: dplasma[Conj]Trans
-                     */
-                    else {
-                        ldbn = BLKLDD(&dcB.super, n);
-                        for( k = 0; k < dcA.super.mt; k++ ) {
-                            ldak = BLKLDD(&dcA.super, k);
-                            zbeta = k == 0 ? beta : zone;
-
-                            parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm, 0,  PARSEC_DEV_CPU, "Gemm",
-                                     sizeof(int),           &tA,                           PARSEC_VALUE,
-                                     sizeof(int),           &tB,                           PARSEC_VALUE,
-                                     sizeof(int),           &tempmm,                       PARSEC_VALUE,
-                                     sizeof(int),           &tempnn,                       PARSEC_VALUE,
-                                     sizeof(int),           &tempkn,                       PARSEC_VALUE,
-                                     sizeof(dplasma_complex64_t),           &alpha,         PARSEC_VALUE,
-                                     PASSED_BY_REF,     PARSEC_DTD_TILE_OF(A, k, m),     PARSEC_INPUT | TILE_FULL,
-                                     sizeof(int),           &ldak,                         PARSEC_VALUE,
-                                     PASSED_BY_REF,     PARSEC_DTD_TILE_OF(B, n, k),     PARSEC_INPUT | TILE_FULL,
-                                     sizeof(int),           &ldbn,                         PARSEC_VALUE,
                                      sizeof(dplasma_complex64_t),           &zbeta,         PARSEC_VALUE,
                                      PASSED_BY_REF,     PARSEC_DTD_TILE_OF(C, m, n),     PARSEC_INOUT | TILE_FULL | PARSEC_AFFINITY,
                                      sizeof(int),           &ldcm,                         PARSEC_VALUE,
@@ -407,7 +330,7 @@ int main(int argc, char ** argv)
                                     ldbk = BLKLDD(&dcB.super, k);
                                     zbeta = k == 0 ? beta : zone;
 
-                                    parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm, 0,  PARSEC_DEV_CPU, "Gemm",
+                                    parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm_rec, 0,  PARSEC_DEV_CPU, "Gemm",
                                              sizeof(int),           &trans[tA],                    PARSEC_VALUE,
                                              sizeof(int),           &trans[tB],                    PARSEC_VALUE,
                                              sizeof(int),           &tempmm,                       PARSEC_VALUE,
@@ -434,7 +357,7 @@ int main(int argc, char ** argv)
                                     tempkn = k == dcA.super.nt-1 ? dcA.super.n-k*dcA.super.nb : dcA.super.nb;
                                     zbeta = k == 0 ? beta : zone;
 
-                                    parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm, 0,  PARSEC_DEV_CPU, "Gemm",
+                                    parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm_rec, 0,  PARSEC_DEV_CPU, "Gemm",
                                              sizeof(int),           &trans[tA],                    PARSEC_VALUE,
                                              sizeof(int),           &trans[tB],                    PARSEC_VALUE,
                                              sizeof(int),           &tempmm,                       PARSEC_VALUE,
@@ -463,7 +386,7 @@ int main(int argc, char ** argv)
                                     ldbk = BLKLDD(&dcB.super, k);
                                     zbeta = k == 0 ? beta : zone;
 
-                                    parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm, 0,  PARSEC_DEV_CPU, "Gemm",
+                                    parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm_rec, 0,  PARSEC_DEV_CPU, "Gemm",
                                              sizeof(int),           &trans[tA],                    PARSEC_VALUE,
                                              sizeof(int),           &trans[tB],                    PARSEC_VALUE,
                                              sizeof(int),           &tempmm,                       PARSEC_VALUE,
@@ -491,7 +414,7 @@ int main(int argc, char ** argv)
                                     ldak = BLKLDD(&dcA.super, k);
                                     zbeta = k == 0 ? beta : zone;
 
-                                    parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm, 0,  PARSEC_DEV_CPU, "Gemm",
+                                    parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm_rec, 0,  PARSEC_DEV_CPU, "Gemm",
                                              sizeof(int),           &trans[tA],                    PARSEC_VALUE,
                                              sizeof(int),           &trans[tB],                    PARSEC_VALUE,
                                              sizeof(int),           &tempmm,                       PARSEC_VALUE,

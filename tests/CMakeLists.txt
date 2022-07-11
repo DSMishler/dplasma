@@ -73,6 +73,20 @@ set(TESTS
    testing_zgeqrf_dtd_untied.c
    testing_zgetrf_incpiv_dtd.c
    testing_zgemm_dtd.c
+   testing_7level_zgemm_dtd.c
+   testing_synchronization_zgemm_dtd.c
+   testing_rectangle_zgemm_dtd.c
+   testing_eacb_zgemm_dtd.c
+   testing_eacb001_zgemm_dtd.c
+   testing_eacb036_zgemm_dtd.c
+   testing_eacb072_zgemm_dtd.c
+   testing_eacb108_zgemm_dtd.c
+   testing_eacb144_zgemm_dtd.c
+   testing_eacb250_zgemm_dtd.c
+   testing_eacb999_zgemm_dtd.c
+   testing_untied_zgemm_dtd.c
+   # Mishler Peak Add
+   testing_zgemm_peakgemm.c
 )
 if( DPLASMA_DEBUG_QR_PIVGEN )
   list(APPEND TESTS testing_zpivgen.c)
