@@ -182,12 +182,15 @@ int main(int argc, char ** argv)
                             ldbk = BLKLDD(&dcB.super, k);
                             zbeta = k == 0 ? beta : zone;
 
-                            int task_prio;
-                            task_prio = (1 << 24) | (dcC.super.mt*dcC.super.nt);
-                            task_prio -= m*dcC.super.nt;
-                            task_prio -= n;
-
-                            parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm, task_prio, PARSEC_DEV_CPU, "Gemm",
+                            int task_prio, task_restriction;
+                            task_prio = dcC.super.mt*dcC.super.nt - (m/6)*n - (n/6);
+                            task_restriction = (m%6) + 6*(n%6) + 1;
+                            if (m >= ((dcC.super.mt-1)/6)*6)
+                            {
+                               task_restriction = 0;
+                            }
+                            task_prio = task_prio | (task_restriction << 24);
+                            parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm,  task_prio, PARSEC_DEV_CPU, "Gemm",
                                      sizeof(int),           &tA,                           PARSEC_VALUE,
                                      sizeof(int),           &tB,                           PARSEC_VALUE,
                                      sizeof(int),           &tempmm,                       PARSEC_VALUE,

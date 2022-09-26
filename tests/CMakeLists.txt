@@ -73,6 +73,8 @@ set(TESTS
    testing_zgeqrf_dtd_untied.c
    testing_zgetrf_incpiv_dtd.c
    testing_zgemm_dtd.c
+   testing_zgemm_dtd_strict.c
+   testing_zgemm_dtd_sstrict.c
    testing_zgemm_custom_class_dtd.c
    testing_7level_zgemm_dtd.c
    testing_synchronization_zgemm_dtd.c

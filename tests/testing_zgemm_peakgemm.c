@@ -85,7 +85,7 @@ void perform_loop(void)
     int i;
     unsigned long long int time;
     struct timespec start, end;
-    int max_i = 1000000000/NB/NB/10;
+    int max_i = 1000000000/NB/NB/2;
     if(max_i > 1024)
     {
        max_i = 1024;
