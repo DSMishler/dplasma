@@ -67,6 +67,51 @@ parsec_core_gemm(parsec_execution_stream_t *es, parsec_task_t *this_task)
     return PARSEC_HOOK_RETURN_DONE;
 }
 
+void recursively_insert_all_tasks(
+    parsec_taskpool_t *dtd_tp,
+    int minm, int maxm,
+    int minn, int maxn,
+    int mink, int maxk,
+    dplasma_complex64_t alpha,
+    dplasma_complex64_t zbeta,
+    dplasma_complex64_t *A,
+    dplasma_complex64_t *B,
+    dplasma_complex64_t *C,
+    int lda, int ldb, int ldc,
+    parsec_matrix_block_cyclic_t dcA,
+    parsec_matrix_block_cyclic_t *__dcA,
+    parsec_matrix_block_cyclic_t dcB,
+    parsec_matrix_block_cyclic_t *__dcB,
+    parsec_matrix_block_cyclic_t dcC,
+    parsec_matrix_block_cyclic_t *__dcC
+    )
+{
+    int tA = dplasmaNoTrans;
+    int tB = dplasmaNoTrans;
+    int ldam, ldak, ldbn, ldbk, ldcm;
+    int tempmm, tempnn, tempkn;
+    int task_prio = 0;
+    int m, n, k;
+    m = n = k = 0;
+    parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm,  task_prio, PARSEC_DEV_CPU, "Gemm",
+                            sizeof(int),           &tA,                           PARSEC_VALUE,
+                            sizeof(int),           &tB,                           PARSEC_VALUE,
+                            sizeof(int),           &tempmm,                       PARSEC_VALUE,
+                            sizeof(int),           &tempnn,                       PARSEC_VALUE,
+                            sizeof(int),           &tempkn,                       PARSEC_VALUE,
+                            sizeof(dplasma_complex64_t),           &alpha,        PARSEC_VALUE,
+                            PASSED_BY_REF,     PARSEC_DTD_TILE_OF(A, m, k),       PARSEC_INPUT | TILE_FULL,
+                            sizeof(int),           &ldam,                         PARSEC_VALUE,
+                            PASSED_BY_REF,     PARSEC_DTD_TILE_OF(B, k, n),       PARSEC_INPUT | TILE_FULL,
+                            sizeof(int),           &ldbk,                         PARSEC_VALUE,
+                            sizeof(dplasma_complex64_t),           &zbeta,        PARSEC_VALUE,
+                            PASSED_BY_REF,     PARSEC_DTD_TILE_OF(C, m, n),       PARSEC_INOUT | TILE_FULL | PARSEC_AFFINITY,
+                            sizeof(int),           &ldcm,                         PARSEC_VALUE,
+                            sizeof(int),           &m,                            PARSEC_VALUE,
+                            sizeof(int),           &n,                            PARSEC_VALUE,
+                            sizeof(int),           &k,                            PARSEC_VALUE,
+                            PARSEC_DTD_ARG_END );
+}
 int main(int argc, char ** argv)
 {
     parsec_context_t* parsec;
