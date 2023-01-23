@@ -48,6 +48,7 @@ parsec_core_gemm(parsec_execution_stream_t *es, parsec_task_t *this_task)
     int tile_k;
 
 
+    // return PARSEC_HOOK_RETURN_DONE; // if timing task insertion only.
     parsec_dtd_unpack_args(this_task, &transA, &transB, &m, &n, &k, &alpha, &A,
                            &lda, &B, &ldb, &beta, &C, &ldc, &tile_m, &tile_n, &tile_k);
 
@@ -183,9 +184,14 @@ int main(int argc, char ** argv)
                             zbeta = k == 0 ? beta : zone;
 
                             int task_prio;
-                            task_prio = (1 << 24) | (dcC.super.mt*dcC.super.nt);
-                            task_prio -= m*dcC.super.nt;
-                            task_prio -= n;
+                            // task_prio = (dcC.super.mt*dcC.super.nt);
+                            // task_prio -= m*dcC.super.nt;
+                            // task_prio -= n;
+                            // task_prio = dcC.super.mt*dcC.super.nt;
+                            // task_prio += m*dcC.super.nt;
+                            // task_prio += n;
+                            // task_prio = ((k+1) << 24);
+                            task_prio = 0;
 
                             parsec_dtd_insert_task( dtd_tp,  &parsec_core_gemm, task_prio, PARSEC_DEV_CPU, "Gemm",
                                      sizeof(int),           &tA,                           PARSEC_VALUE,

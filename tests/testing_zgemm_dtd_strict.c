@@ -185,7 +185,7 @@ int main(int argc, char ** argv)
                             // set up for saturn
                             int task_prio, task_restriction;
                             task_prio = dcC.super.mt*dcC.super.nt - m*dcC.super.nt - n;
-                            task_restriction = (m%5) + 5*(n%4) + 1;
+                            task_restriction = (m%6) + 6*(n%6) + 1;
                             // if(m%5 == 4)
                             // {
                                // printf("m=%d\tn=%d\tk=%d:\tprio=%d\trestriction=%d\n",
