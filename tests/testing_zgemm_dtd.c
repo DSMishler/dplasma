@@ -164,7 +164,7 @@ int main(int argc, char ** argv)
                         }
                     }
                     /*
-                     *  A: dplasmaNoTrans / B: dplasma[Conj]Trans
+                     *  A: dplasma[Conj]Trans / B: dplasmaNoTrans
                      */
                     else {
                         ldbn = BLKLDD(&dcB.super, n);
@@ -245,26 +245,28 @@ int main(int argc, char ** argv)
                     }
                 }
             }
+    
+            parsec_dtd_data_flush_all( dtd_tp, (parsec_data_collection_t *)&dcA );
+            parsec_dtd_data_flush_all( dtd_tp, (parsec_data_collection_t *)&dcB );
+            parsec_dtd_data_flush_all( dtd_tp, (parsec_data_collection_t *)&dcC );
+    
+            /* finishing all the tasks inserted, but not finishing the handle */
+            parsec_taskpool_wait( dtd_tp );
+    
+            /* Waiting on all handle and turning everything off for this context */
+            parsec_context_wait( parsec );
+    
+            /* #### PaRSEC context is done #### */
+    
+            SYNC_TIME_PRINT(rank, ("\tPxQ= %3d %-3d NB= %4d N= %7d : %14f gflops\n",
+                                   P, Q, NB, N,
+                                   gflops=(flops/1e9)/sync_time_elapsed));
+    
         }
-
-        parsec_dtd_data_flush_all( dtd_tp, (parsec_data_collection_t *)&dcA );
-        parsec_dtd_data_flush_all( dtd_tp, (parsec_data_collection_t *)&dcB );
-        parsec_dtd_data_flush_all( dtd_tp, (parsec_data_collection_t *)&dcC );
-
-        /* finishing all the tasks inserted, but not finishing the handle */
-        parsec_taskpool_wait( dtd_tp );
-
-        /* Waiting on all handle and turning everything off for this context */
-        parsec_context_wait( parsec );
-
-        /* #### PaRSEC context is done #### */
-
-        SYNC_TIME_PRINT(rank, ("\tPxQ= %3d %-3d NB= %4d N= %7d : %14f gflops\n",
-                               P, Q, NB, N,
-                               gflops=(flops/1e9)/sync_time_elapsed));
-
         /* Cleaning up the parsec handle */
         parsec_taskpool_free( dtd_tp );
+
+
 
         /* Cleaning data arrays we allocated for communication */
         dplasma_matrix_del2arena( tile_full );
