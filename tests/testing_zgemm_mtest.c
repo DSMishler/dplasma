@@ -77,13 +77,13 @@ int main(int argc, char ** argv)
         for(t = 0; t < nruns; t++) {
             parsec_devices_release_memory();
             /* Create PaRSEC */
-            PASTE_CODE_ENQUEUE_PROGRESS_DESTRUCT_KERNEL(parsec, zgemm,
+            PASTE_CODE_ENQUEUE_PROGRESS_DESTRUCT_KERNEL(parsec, zgemm_z,
                                       (tA, tB, alpha,
                                        (parsec_tiled_matrix_t *)&dcA,
                                        (parsec_tiled_matrix_t *)&dcB,
                                        beta,
                                        (parsec_tiled_matrix_t *)&dcC),
-                                      dplasma_zgemm_Destruct( PARSEC_zgemm ));
+                                      dplasma_zgemm_Destruct( PARSEC_zgemm_z ));
 
             parsec_devices_reset_load(parsec);
         }
