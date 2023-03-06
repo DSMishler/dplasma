@@ -44,6 +44,7 @@ set(JDF
   #
   zgemm_NN.jdf zgemm_TN.jdf zgemm_NT.jdf zgemm_TT.jdf
   zgemm_NN_summa.jdf zgemm_TN_summa.jdf zgemm_NT_summa.jdf zgemm_TT_summa.jdf
+  zgemm_NN_mtest.jdf zgemm_NT_mtest.jdf zgemm_TN_mtest.jdf zgemm_TT_mtest.jdf
   zgemm_NN_gpu.jdf
   zhemm.jdf
   zher2k_LN.jdf zher2k_LC.jdf zher2k_UN.jdf zher2k_UC.jdf
@@ -132,6 +133,7 @@ set(SOURCES
   zprint_wrapper.c
   # Level 3 Blas
   zgemm_wrapper.c
+  zgemm_mtest_wrapper.c
   zhemm_wrapper.c
   zher2k_wrapper.c
   zherk_wrapper.c

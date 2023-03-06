@@ -8,6 +8,7 @@ extern "C" %{
  * $COPYRIGHT
  *
  */
+ /* Daniel Mishler attempt to make no migrations occur in a ptg gemm */
 #include "dplasmajdf.h"
 #include "dplasmaaux.h"
 #include "parsec/data_dist/matrix/matrix.h"
@@ -48,7 +49,8 @@ extern "C" %{
  *
  */
 
-#include "zgemm_NN_summa.h"
+/* As of 2023-03-06, only NN is implemented */
+#include "zgemm_TT_mtest.h"
 
 %}
 
@@ -59,7 +61,7 @@ extern "C" %{
 /* Keep this first, as in all jdf in this directory, to
  * enable switching between GEMM implementations.
  */
-gemm_type [ type = int hidden=on default="DPLASMA_ZGEMM_NN_SUMMA" ]
+gemm_type [ type = int hidden=on default="DPLASMA_ZGEMM_TT_MTEST" ]
 
 transA [type = int]
 transB [type = int]
@@ -207,6 +209,8 @@ CTL ctla -> (k < (descA->nt-lookQ)) ? ctla RING_A(m, k+lookQ, n%Q)
 CTL ctlb -> (k < (descA->nt-lookP)) ? ctlb RING_B(k+lookP, n, m%P)
 
 BODY [type=CUDA
+      dyld=cublasZgemm dyldtype=cublas_zgemm_t
+      weight=(descA->nt-k)
       A.size=%{ return descA->mb*descA->nb*parsec_datadist_getsizeoftype(descA->mtype);%}
       B.size=%{ return descB->mb*descB->nb*parsec_datadist_getsizeoftype(descB->mtype);%}
       C.size=%{ return descC->mb*descC->nb*parsec_datadist_getsizeoftype(descC->mtype);%}
@@ -231,13 +235,14 @@ BODY [type=CUDA
 
     cublasStatus_t status;
     cublasSetKernelStream( parsec_body.stream );
-    cublasZgemm( dplasma_lapack_const(transA), dplasma_lapack_const(transB),
+    parsec_body.dyld_fn( dplasma_lapack_const(transA), dplasma_lapack_const(transB),
              tempmm, tempnn, tempkk,
              lalpha, (cuDoubleComplex*)A, ldam,
                      (cuDoubleComplex*)B, ldbk,
              lbeta,  (cuDoubleComplex*)C, ldcm );
     status = cublasGetError();
-    PARSEC_CUDA_CHECK_ERROR( "cublasZgemm ", status, {return PARSEC_HOOK_RETURN_ERROR;} );
+    PARSEC_CUDA_CHECK_ERROR( "cublasZgemm ", status,
+                            {return -1;} );
 }
 END
 
