@@ -145,14 +145,14 @@ int main(int argc, char ** argv)
 
                 /* Create GEMM PaRSEC */
                 if(loud) printf("Compute ... ... ");
-                    PASTE_CODE_ENQUEUE_PROGRESS_DESTRUCT_KERNEL(parsec, zgemm,
+                    PASTE_CODE_ENQUEUE_PROGRESS_DESTRUCT_KERNEL(parsec, zgemm_z,
                               (trans[tA], trans[tB],
                                (dplasma_complex64_t)alpha,
                                (parsec_tiled_matrix_t *)&dcA,
                                (parsec_tiled_matrix_t *)&dcB,
                                (dplasma_complex64_t)beta,
                                (parsec_tiled_matrix_t *)&dcC),
-                              dplasma_zgemm_Destruct( PARSEC_zgemm ));
+                              dplasma_zgemm_Destruct( PARSEC_zgemm_z ));
 
                 if(loud) printf("Done\n");
 

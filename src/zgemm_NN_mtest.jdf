@@ -102,6 +102,11 @@ loc_A = %{ return LOC(descA, m, k); %}
 READ A <- ddescA(m, k)        [ type        = %{ return ADTT_READ(ddescA, loc_A, A_SHAPE, TILED); %}
                                 type_data   = %{ return ADTT_READ(ddescA, loc_A, A_SHAPE, LAPACK); %} ]
        -> A RING_A(m, k, k%Q) /* dep OUT: rely on datacopy dtt for sending */
+/* has to be here because I don't know how ringa works */
+// READ DEPA <- ddescA(m, k)
+          // -> DEPA GEMM(m, 0 .. descC->nt-1, k)
+// READ ALLREADA <- ddescA(m,k)
+              // -> (m == descA->mt-1 && k==descA->nt-1) ? ALLREADA GEMM(0 .. descC->mt-1, 0 .. descC->nt-1, 0 .. descA->nt-1)
 
 BODY
 {
@@ -124,6 +129,7 @@ loc_A = %{ return LOC(descA, m, k); %}
 READ A <- (k%Q == q) ? A READ_A(m, k) : A RING_A(m, k, prevq) [ type_remote = %{ return ADTT_DC(ddescA, loc_A, A_SHAPE, TILED); %} ]
        -> A GEMM(m, q .. descC->nt-1 .. Q, k)                 /* dep OUT: rely on datacopy dtt for sending */
        -> (nextq != (k%Q)) ? A RING_A(m, k, nextq)            /* dep OUT: rely on datacopy dtt for sending */
+CTL  ALLRINGA -> (m == descA->mt-1 && k == descA->nt-1 && q == Q-1) ? ALLRINGA GEMM(0 .. descC->mt-1, 0 .. descC->nt-1, 0 .. descA->nt-1)
 
 CTL ctla <- (k >= lookQ) ? ctla GEMM(m, q .. descC->nt-1 .. Q, k-lookQ)
 
@@ -148,6 +154,8 @@ loc_B = %{ return LOC(descB, k, n); %}
 READ B <- ddescB(k, n)        [ type        = %{ return ADTT_READ(ddescB, loc_B, B_SHAPE, TILED); %}
                                 type_data   = %{ return ADTT_READ(ddescB, loc_B, B_SHAPE, LAPACK); %} ]
        -> B RING_B(k, n, k%P) /* dep OUT: rely on datacopy dtt for sending */
+// READ ALLREADB <- ddescB(k,n)
+              // -> (k == descB->nt-1 && n == descB->mt-1) ? ALLREADB GEMM(0 .. descC->mt-1, 0 .. descC->nt-1, 0 .. descA->nt-1)
 BODY
 {
      printlog("rank %u <- B(%d,%d)\n", ((parsec_data_collection_t*)descB)->myrank, k, n);
@@ -169,6 +177,7 @@ loc_B = %{ return LOC(descB, k, n); %}
 READ B <- (k%P == p) ? B READ_B(k, n) : B RING_B(k, n, prevp) [ type_remote = %{ return ADTT_DC(ddescB, loc_B, B_SHAPE, TILED); %} ]
        -> B GEMM(p .. descC->mt-1 .. P, n, k)                 /* dep OUT: rely on datacopy dtt for sending */
        -> (nextp != (k%P)) ? B RING_B(k, n, nextp)            /* dep OUT: rely on datacopy dtt for sending */
+CTL ALLRINGB -> (k == descB->mt-1 && n == descB->nt-1 && p == P-1) ? ALLRINGB GEMM(0 .. descC->mt-1, 0 .. descC->nt-1, 0 .. descA->nt-1)
 
 CTL ctlb <- (k >= lookP) ? ctlb GEMM(p .. descC->mt-1 .. P, n, k-lookP)
 
@@ -204,6 +213,41 @@ RW   C <- (k == 0)             ? ddescC(m, n)         [ type        = %{ return 
        -> (k == (descA->nt-1)) ? ddescC(m, n)         [ type        = %{ return ADTT_CP(_f_C, ddescC, loc_C, C_SHAPE); %}
                                                         type_data   = %{ return ADTT_DC(ddescC, loc_C, C_SHAPE, LAPACK); %} ]
        -> (k != (descA->nt-1)) ? C GEMM( m, n, k+1 )  /* dep OUT: rely on datacopy dtt for sending */
+// READ ALLREADA <- ALLREADA READ_A(descA->mt-1, descA->nt-1)
+// READ ALLREADB <- ALLREADB READ_B(descB->nt-1, descB->mt-1)
+CTL  ALLRINGA <- ALLRINGA RING_A(descA->mt-1, descA->nt-1, Q-1)
+CTL  ALLRINGB <- ALLRINGB RING_B(descB->mt-1, descB->nt-1, P-1)
+
+// RW   DEPCN <- (n < 6 && k== 0)  ? descC(m, n)
+           // <- (n >= 6 && k == 0)  ? DEPCN GEMM(m, n-6, descA->nt-1)
+           // <- (k != 0)  ? descC(m, n)
+           // -> (k == descA->nt-1) ? DEPCN GEMM(m, n+6, 0 .. descA->nt-1)
+
+// RW   DEPCM <- (m < 6 && k== 0)  ? descC(m, n)
+           // <- (m >= 6 && k == 0)  ? DEPCM GEMM(m-6, n, descA->nt-1)
+           // <- (k != 0)  ? descC(m, n)
+           // -> (k == descA->nt-1) ? DEPCM GEMM(m+6, n, 0 .. descA->nt-1)
+
+CTL  DEPCN <- (n >= 6 && k == 0)  ? DEPCN GEMM(m, n-6, descA->nt-1)
+           -> (k == descA->nt-1) ? DEPCN GEMM(m, n+6, 0 .. descA->nt-1)
+
+CTL  DEPCM <- (m >= 6 && k == 0)  ? DEPCM GEMM(m-6, n, descA->nt-1)
+           -> (k == descA->nt-1) ? DEPCM GEMM(m+6, n, 0 .. descA->nt-1)
+
+
+// RW   DEPCM <- (m < 6 )  ? descC(m, n)
+           // <- (m >= 6)  ? DEPCM GEMM(m-6, n, k)
+           // // -> DEPCM GEMM(m+6, n, k)
+
+
+// READ DEPA <- (k == 0)          ? A RING_A(m, k, n%Q)
+// READ DEPA <- DEPA READ_A(m, k)
+
+
+// RW   D <- (n == 0)             ? ddescC(m, n)
+//        <- (n != 0)             ? D GEMM( m, n-1, k)
+//        -> D GEMM( m, n+1, k)
+
 
 CTL ctla -> (k < (descA->nt-lookQ)) ? ctla RING_A(m, k+lookQ, n%Q)
 CTL ctlb -> (k < (descA->nt-lookP)) ? ctlb RING_B(k+lookP, n, m%P)

@@ -251,7 +251,7 @@ BODY
     int ldam = LDA(ddescA, A);
     int ldbk = LDA(ddescB, B);
     int ldcm = LDA(ddescC, C);
-
+    
     CORE_zgemm(transA, transB,
                tempmm, tempnn, tempkk,
                alpha, A /*A(m, k)*/, ldam,

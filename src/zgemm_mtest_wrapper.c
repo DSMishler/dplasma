@@ -431,6 +431,7 @@ dplasma_zgemm_z( parsec_context_t *parsec,
                                         const parsec_tiled_matrix_t *B,
                dplasma_complex64_t beta,        parsec_tiled_matrix_t *C)
 {
+    printf("calling zgemm_z in mtest version\n");
     parsec_taskpool_t *parsec_zgemm = NULL;
     int M, N, K;
     int Am, An, Ai, Aj, Amb, Anb;
