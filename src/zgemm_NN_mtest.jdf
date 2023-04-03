@@ -146,7 +146,7 @@ END
 ACCUMULATOR_A(a) [profile = off]
 
 // I don't know what these parameters define.
-a = 0 .. 1
+a = 0 .. 0
 
 : descA(0,0)
 
@@ -155,7 +155,7 @@ CTL  ALL_READ_A -> ALL_READ_A GEMM(0 .. descC->mt-1, 0 .. descC->nt-1, 0 .. desc
 
 BODY
 {
-   printf("accumulator A running!\n");
+   // printf("accumulator A running!\n");
    printlog("A accumulated\n");
 }
 END
@@ -176,6 +176,8 @@ loc_B = %{ return LOC(descB, k, n); %}
 READ B <- ddescB(k, n)        [ type        = %{ return ADTT_READ(ddescB, loc_B, B_SHAPE, TILED); %}
                                 type_data   = %{ return ADTT_READ(ddescB, loc_B, B_SHAPE, LAPACK); %} ]
        -> B RING_B(k, n, k%P) /* dep OUT: rely on datacopy dtt for sending */
+CTL ctlb <- (k > 0) ctlb READ_B(k-1,n)
+         -> ctlb READ_B(k+1, n)
 // READ ALLREADB <- ddescB(k,n)
               // -> (k == descB->nt-1 && n == descB->mt-1) ? ALLREADB GEMM(0 .. descC->mt-1, 0 .. descC->nt-1, 0 .. descA->nt-1)
 BODY
@@ -214,7 +216,7 @@ END
  **************************************************/
 ACCUMULATOR_B(b) [profile = off]
 
-b = 0 .. 1
+b = 0 .. 0
 
 : descB(0,0)
 
@@ -223,7 +225,7 @@ CTL  ALL_READ_B -> ALL_READ_B GEMM(0 .. descC->mt-1, 0 .. descC->nt-1, 0 .. desc
 
 BODY
 {
-   printf("accumulator B running!\n");
+   // printf("accumulator B running!\n");
    printlog("B accumulated\n");
 }
 END
@@ -323,7 +325,7 @@ BODY
     int ldbk = LDA(ddescB, B);
     int ldcm = LDA(ddescC, C);
 
-    printf("GEMM m=%d, n=%d, k=%d\n", m, n, k);
+    // printf("GEMM m=%d, n=%d, k=%d\n", m, n, k);
     CORE_zgemm(transA, transB,
                tempmm, tempnn, tempkk,
                alpha, A /*A(m, k)*/, ldam,
