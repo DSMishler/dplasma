@@ -151,8 +151,7 @@ a = 0 .. 0
 : descA(0,0)
 
 CTL  ALLRINGA <- ALLRINGA RING_A(descA->mt-1, descA->nt-1, Q-1)
-CTL  ALL_READ_A -> ALL_READ_A GEMM(0 .. descC->mt-1, 0 .. descC->nt-1, 0 .. descA->nt-1)
-                -> ALL_READ_A ACCUMULATOR_6x6(0,0)
+CTL  ALL_READ_A -> ALL_READ_A ACCUMULATOR_6x6(0,0)
 
 BODY
 {
@@ -220,8 +219,7 @@ b = 0 .. 0
 : descB(0,0)
 
 CTL  ALLRINGB <- ALLRINGB RING_B(descA->mt-1, descA->nt-1, Q-1)
-CTL  ALL_READ_B -> ALL_READ_B GEMM(0 .. descC->mt-1, 0 .. descC->nt-1, 0 .. descA->nt-1)
-                -> ALL_READ_B ACCUMULATOR_6x6(0,0)
+CTL  ALL_READ_B -> ALL_READ_B ACCUMULATOR_6x6(0,0)
 
 BODY
 {
@@ -247,8 +245,8 @@ CTL PASS_M  <- (mst != 0) ? PASS_M ACCUMULATOR_6x6(mst-1, nst)
 CTL PASS_N  <- (mst == 0 && nst != 0) ? PASS_N ACCUMULATOR_6x6((descC->mt-1)/6, nst-1)
             -> (mst == (descC->mt-1)/6) ? PASS_N ACCUMULATOR_6x6(0, nst+1)
 CTL BLOCK_START -> BLOCK_START GEMM(mst*6 .. mst*6+5, nst*6 .. nst*6+5, 0)
-CTL ACCUM_START <- (mst != 0 || nst != 0) ? ACCUM_START GEMM((mst-1)*6, nst*6, descA->nt-1)
-                <- (mst == 0 && nst != 0) ? ACCUM_START GEMM(((descC->mt-1)/6)*6, (nst-1)*6, descA->nt-1)
+CTL ACCUM_START <- (mst != 0 || nst != 0) ? ACCUM_START GEMM((mst-1)*6, nst*6, ((descA->nt-1)*4)/5)
+                <- (mst == 0 && nst != 0) ? ACCUM_START GEMM(((descC->mt-1)/6)*6, (nst-1)*6, ((descA->nt-1)*4)/5)
 
 
 BODY
@@ -286,19 +284,17 @@ RW   C <- (k == 0)             ? ddescC(m, n)         [ type        = %{ return 
                                                         type_data   = %{ return ADTT_DC(ddescC, loc_C, C_SHAPE, LAPACK); %} ]
        -> (k != (descA->nt-1)) ? C GEMM( m, n, k+1 )  /* dep OUT: rely on datacopy dtt for sending */
 
-CTL  ALL_READ_A <- ALL_READ_A ACCUMULATOR_A(0)
-CTL  ALL_READ_B <- ALL_READ_B ACCUMULATOR_B(0)
-
-CTL  DEPCN <- (n >= 6 && k == 0)  ? DEPCN GEMM(m, n-6, descA->nt-1)
-           -> (k == descA->nt-1) ? DEPCN GEMM(m, n+6, 0 .. descA->nt-1)
-
-CTL  DEPCM <- (m >= 6 && k == 0)  ? DEPCM GEMM(m-6, n, descA->nt-1)
-           -> (k == descA->nt-1) ? DEPCM GEMM(m+6, n, 0 .. descA->nt-1)
 
 CTL BLOCK_START <- (k == 0) ? BLOCK_START ACCUMULATOR_6x6(m/6, n/6)
 
-CTL ACCUM_START -> (k == descA->nt-1 && m % 6 == 0 && n % 6 == 0 && m/6 < (descC->mt-1)/6) ? ACCUM_START ACCUMULATOR_6x6(m/6+1,n/6)
-                -> (k == descA->nt-1 && m % 6 == 0 && n % 6 == 0 && m/6 == (descC->mt-1)/6) ? ACCUM_START ACCUMULATOR_6x6(0,n/6+1)
+CTL ACCUM_START -> (k == ((descA->nt-1)*4)/5 && m % 6 == 0 && n % 6 == 0 && m/6 < (descC->mt-1)/6) ? ACCUM_START ACCUMULATOR_6x6(m/6+1,n/6)
+                -> (k == ((descA->nt-1)*4)/5 && m % 6 == 0 && n % 6 == 0 && m/6 == (descC->mt-1)/6) ? ACCUM_START ACCUMULATOR_6x6(0,n/6+1)
+
+
+// CTL  DEPCN <- (n >= 6 && k == 0)  ? DEPCN GEMM(m, n-6, descA->nt-1)
+           // -> (k == descA->nt-1) ? DEPCN GEMM(m, n+6, 0 .. descA->nt-1)
+// CTL  DEPCM <- (m >= 6 && k == 0)  ? DEPCM GEMM(m-6, n, descA->nt-1)
+           // -> (k == descA->nt-1) ? DEPCM GEMM(m+6, n, 0 .. descA->nt-1)
 
 // RW   DEPCM <- (m < 6 )  ? descC(m, n)
            // <- (m >= 6)  ? DEPCM GEMM(m-6, n, k)
