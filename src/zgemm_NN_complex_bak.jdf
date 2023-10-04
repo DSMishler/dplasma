@@ -130,6 +130,7 @@ READ A <- (k%Q == q) ? A READ_A(m, k) : A RING_A(m, k, prevq) [ type_remote = %{
        -> A GEMM(m, q .. descC->nt-1 .. Q, k)                 /* dep OUT: rely on datacopy dtt for sending */
        -> (nextq != (k%Q)) ? A RING_A(m, k, nextq)            /* dep OUT: rely on datacopy dtt for sending */
 // CTL  ALLRINGA -> (m == descA->mt-1 && k == descA->nt-1 && q == Q-1) ? ALLRINGA GEMM(0 .. descC->mt-1, 0 .. descC->nt-1, 0 .. descA->nt-1)
+CTL  ALLRINGA -> (m == descA->mt-1 && k == descA->nt-1 && q == Q-1) ? ALLRINGA ACCUMULATOR_A(0)
 
 CTL ctla <- (k >= lookQ) ? ctla GEMM(m, q .. descC->nt-1 .. Q, k-lookQ)
 
@@ -138,6 +139,27 @@ BODY
     printlog("rank %u <- A(%d,%d)\n", ((parsec_data_collection_t*)descA)->myrank, m, k);
 }
 END
+
+/**************************************************
+ *                  ACCUMULATOR_A                 *
+ **************************************************/
+ACCUMULATOR_A(a) [profile = off]
+
+// I don't know what these parameters define.
+a = 0 .. 0
+
+: descA(0,0)
+
+CTL  ALLRINGA <- ALLRINGA RING_A(descA->mt-1, descA->nt-1, Q-1)
+CTL  ALL_READ_A -> ALL_READ_A ACCUMULATOR_6x6(0,0)
+
+BODY
+{
+   // printf("accumulator A running!\n");
+   printlog("A accumulated\n");
+}
+END
+
 
 /**************************************************
  *                       READ_B                   *
@@ -177,6 +199,7 @@ loc_B = %{ return LOC(descB, k, n); %}
 READ B <- (k%P == p) ? B READ_B(k, n) : B RING_B(k, n, prevp) [ type_remote = %{ return ADTT_DC(ddescB, loc_B, B_SHAPE, TILED); %} ]
        -> B GEMM(p .. descC->mt-1 .. P, n, k)                 /* dep OUT: rely on datacopy dtt for sending */
        -> (nextp != (k%P)) ? B RING_B(k, n, nextp)            /* dep OUT: rely on datacopy dtt for sending */
+CTL ALLRINGB -> (k == descB->mt-1 && n == descB->nt-1 && p == P-1) ? ALLRINGB ACCUMULATOR_B(0)
 
 CTL ctlb <- (k >= lookP) ? ctlb GEMM(p .. descC->mt-1 .. P, n, k-lookP)
 
@@ -187,153 +210,49 @@ BODY
 END
 
 /**************************************************
- *              SUPERTILE_BEGIN_6x6               *
+ *                  ACCUMULATOR_B                 *
  **************************************************/
-SUPERTILE_BEGIN_6x6(mst, nst) [profile = off]
-mst = 0 .. (((descC->mt)-1)/ 6)
-nst = 0 .. (((descC->nt)-1)/ 6)
+ACCUMULATOR_B(b) [profile = off]
 
-: descC(mst*6, nst*6)
-// : descB(0,0)
+b = 0 .. 0
 
-CTL MDTILE_BEGIN -> MDTILE_BEGIN MIDITILE_BEGIN_3x3(mst*2 .. mst*2+1, nst*2 .. nst*2+1)
-CTL SPTILE_BEGIN <- (mst > 0) ? SPTILE_BEGIN SUPERTILE_MID_6x6(mst-1,nst)
-              <- (mst == 0 && nst > 0) ? SPTILE_BEGIN SUPERTILE_MID_6x6((descC->mt)/6-1,nst-1)
+: descB(0,0)
 
-              // <- (mst != 0 && nst != 0) ? SPTILE_STRAGGLERS SUPERTILE_MID_COMPLETE(0)
-              // <- (mst != 0 && nst != 0) ? SPTILE_BEGIN SUPERTILE_MID_6x6(mst-1,nst-1) // anything can be triggered by its corner
-                // this is done so the bottom-right gets triggered.
-              // <- ((mst == (descC->mt-1)/6) && (nst == (descC->nt-1)/6) && (descC->nt) % 6 != 0) ? SPTILE_BEGIN SUPERTILE_MID_6x6(mst-1,nst-1)
-
+CTL  ALLRINGB <- ALLRINGB RING_B(descA->mt-1, descA->nt-1, Q-1)
+CTL  ALL_READ_B -> ALL_READ_B ACCUMULATOR_6x6(0,0)
 
 BODY
 {
-    printlog("supertile_begin_6x6 for mst=%d,nst=%d\n", mst, nst);
-    // printf("supertile_begin_6x6 for mst=%d,nst=%d\n", mst, nst);
+   // printf("accumulator B running!\n");
+   printlog("B accumulated\n");
 }
 END
 
 /**************************************************
- *              MIDITILE_BEGIN_3x3                *
+ *              ACCUMULATOR_6x6                   *
  **************************************************/
-MIDITILE_BEGIN_3x3(mmt, nmt) [profile = off]
-mmt = 0 .. (((descC->mt)-1)/ 3)
-nmt = 0 .. (((descC->nt)-1)/ 3)
-
-: descC(mmt*3, nmt*3)
-// : descB(0,0)
-
-CTL TILE_BEGIN -> TILE_BEGIN GEMM(mmt*3 .. mmt*3+2, nmt*3 .. nmt*3+2, 0)
-CTL MDTILE_BEGIN <- MDTILE_BEGIN SUPERTILE_BEGIN_6x6(mmt/2, nmt/2)
-
-BODY
-{
-    printlog("miditile_begin_6x6 for mmt=%d,nmt=%d\n", mmt, nmt);
-    // printf("miditile_begin_6x6 for mmt=%d,nmt=%d\n", mmt, nmt);
-}
-END
-
-// /**************************************************
-//  *           SUPERTILE_MID_COMPLETE               *
-//  **************************************************/
-// SUPERTILE_MID_COMPLETE(a) [profile = off]
-// a = 0 .. 0
-// 
-// : descC(0,0)
-// 
-// CTL SPTILE_COMPLETE <- SPTILE_COMPLETE SUPERTILE_MID_6x6(descC->mt/6-1,descC->nt/6-1)
-// // CTL SPTILE_STRAGGLERS -> SPTILE_BEGIN SUPERTILE_BEGIN_6x6(0..(descC->mt-1)/6,0..(descC->nt-1)/6)
-// 
-// BODY
-// {
-//     printlog("all supertile_mid_6x6 complete\n");
-//     // printf("all supertile_mid_6x6 complete\n");
-// }
-// END
-
-/**************************************************
- *              SUPERTILE_MID_6x6                *
- **************************************************/
-SUPERTILE_MID_6x6(mst, nst) [profile = off]
-mst = 0 .. (((descC->mt) / 6) - 1)
-nst = 0 .. (((descC->nt) / 6) - 1)
-
-: descC(mst*6, nst*6)
-// : descB(0,0)
-
-CTL MDTILE_MID <- MDTILE_MID MIDITILE_MID_3x3(mst*2 .. mst*2+1, nst*2 .. nst*2+1)
-CTL SPTILE_BEGIN -> (mst == (descC->mt)/6-1) ? SPTILE_BEGIN SUPERTILE_BEGIN_6x6(0, nst+1)
-                 -> SPTILE_BEGIN SUPERTILE_BEGIN_6x6(mst+1,nst)
-                 // -> (nst == (descC->nt)/6-1) ? SPTILE_BEGIN SUPERTILE_BEGIN_6x6(mst, nst+1)
-                 // -> (nst == (descC->nt)/6-1 && mst == (descC->nt)/6-1) ? SPTILE_BEGIN SUPERTILE_BEGIN_6x6(mst..mst+1, nst+1)
-// CTL SPTILE_COMPLETE -> (mst == descC->mt/6-1 && nst == descC->nt/6-1) ? SPTILE_COMPLETE SUPERTILE_MID_COMPLETE(0)
-
-
-BODY
-{
-    printlog("supertile_mid_6x6 for mst=%d,nst=%d\n", mst, nst);
-    // printf("supertile_mid_6x6 for mst=%d,nst=%d\n", mst, nst);
-}
-END
-
-/**************************************************
- *              MIDITILE_MID_3x3                  *
- **************************************************/
-MIDITILE_MID_3x3(mmt, nmt) [profile = off]
-mmt = 0 .. (((descC->mt) / 3) - 1)
-nmt = 0 .. (((descC->nt) / 3) - 1)
-
-: descC(mmt*3, nmt*3)
-// : descB(0,0)
-
-CTL TILE_MID <- TILE_MID GEMM(mmt*3 .. mmt*3+2, nmt*3 .. nmt*3+2, 4*(descA->nt-1)/5)
-CTL MDTILE_MID -> MDTILE_MID SUPERTILE_MID_6x6(mmt/2, nmt/2)
-
-BODY
-{
-    printlog("miditile_mid_3x3 for mmt=%d,nmt=%d\n", mmt, nmt);
-    // printf("miditile_mid_3x3 for mmt=%d,nmt=%d\n", mmt, nmt);
-}
-END
-
-/**************************************************
- *              SUPERTILE_END_6x6                *
- **************************************************/
-SUPERTILE_END_6x6(mst, nst) [profile = off]
+ACCUMULATOR_6x6(mst, nst) [profile = off]
 mst = 0 .. ((descC->mt-1) / 6)
 nst = 0 .. ((descC->nt-1) / 6)
 
 : descC(mst*6, nst*6)
 // : descB(0,0)
 
-CTL MDTILE_END <- MDTILE_END MIDITILE_END_3x3(mst*2 .. mst*2+1, nst*2 .. nst*2+1)
+CTL ALL_READ_A <- (mst == 0 && nst == 0) ? ALL_READ_A ACCUMULATOR_A(0)
+CTL ALL_READ_B <- (mst == 0 && nst == 0) ? ALL_READ_B ACCUMULATOR_B(0)
+CTL PASS_M  <- (mst != 0) ? PASS_M ACCUMULATOR_6x6(mst-1, nst)
+            -> (mst != (descC->mt-1)/6) ? PASS_M ACCUMULATOR_6x6(mst+1, nst)
+CTL PASS_N  <- (mst == 0 && nst != 0) ? PASS_N ACCUMULATOR_6x6((descC->mt-1)/6, nst-1)
+            -> (mst == (descC->mt-1)/6) ? PASS_N ACCUMULATOR_6x6(0, nst+1)
+CTL BLOCK_START -> BLOCK_START GEMM(mst*6 .. mst*6+5, nst*6 .. nst*6+5, 0)
+CTL ACCUM_START <- (mst != 0 || nst != 0) ? ACCUM_START GEMM((mst-1)*6, nst*6, ((descA->nt-1)*3)/5)
+                <- (mst == 0 && nst != 0) ? ACCUM_START GEMM(((descC->mt-1)/6)*6, (nst-1)*6, ((descA->nt-1)*3)/5)
 
 
 BODY
 {
-    printlog("supertile_end_6x6 for mst=%d,nst=%d\n", mst, nst);
-    // printf("supertile_end_6x6 for mst=%d,nst=%d\n", mst, nst);
-}
-END
-
-/**************************************************
- *              MIDITILE_END_3x3                  *
- **************************************************/
-MIDITILE_END_3x3(mmt, nmt) [profile = off]
-mmt = 0 .. ((descC->mt-1) / 3)
-nmt = 0 .. ((descC->nt-1) / 3)
-
-: descC(mmt*3, nmt*3)
-// : descB(0,0)
-
-CTL TILE_END <- TILE_END GEMM(mmt*3 .. mmt*3+2, nmt*3 .. nmt*3+2, descA->nt-1)
-CTL MDTILE_END -> MDTILE_END SUPERTILE_END_6x6(mmt/2,nmt/2)
-
-
-BODY
-{
-    printlog("miditlie_end_3x3 for mmt=%d,nmt=%d\n", mmt, nmt);
-    // printf("miditlie_end_3x3 for mmt=%d,nmt=%d\n", mmt, nmt);
+    printlog("accumulator_6x6 for mst=%d,nst=%d\n", mst, nst);
+    // printf("accumulator_6x6 for mst=%d,nst=%d\n", mst, nst);
 }
 END
 
@@ -366,9 +285,20 @@ RW   C <- (k == 0)             ? ddescC(m, n)         [ type        = %{ return 
        -> (k != (descA->nt-1)) ? C GEMM( m, n, k+1 )  /* dep OUT: rely on datacopy dtt for sending */
 
 
-CTL TILE_BEGIN <- (k == 0) ? TILE_BEGIN MIDITILE_BEGIN_3x3(m/3,n/3)
-CTL TILE_MID -> (k == (4*(descA->nt-1)/5)) ? TILE_MID MIDITILE_MID_3x3(m/3,n/3)
-CTL TILE_END -> (k == ((descA->nt-1))) ? TILE_END MIDITILE_END_3x3(m/3,n/3)
+CTL BLOCK_START <- (k == 0) ? BLOCK_START ACCUMULATOR_6x6(m/6, n/6)
+
+CTL ACCUM_START -> (k == ((descA->nt-1)*3)/5 && m % 6 == 1 && n % 6 == 1 && m/6 < (descC->mt-1)/6) ? ACCUM_START ACCUMULATOR_6x6(m/6+1,n/6)
+                -> (k == ((descA->nt-1)*3)/5 && m % 6 == 1 && n % 6 == 1 && m/6 == (descC->mt-1)/6) ? ACCUM_START ACCUMULATOR_6x6(0,n/6+1)
+
+
+// CTL  DEPCN <- (n >= 6 && k == 0)  ? DEPCN GEMM(m, n-6, descA->nt-1)
+           // -> (k == descA->nt-1) ? DEPCN GEMM(m, n+6, 0 .. descA->nt-1)
+// CTL  DEPCM <- (m >= 6 && k == 0)  ? DEPCM GEMM(m-6, n, descA->nt-1)
+           // -> (k == descA->nt-1) ? DEPCM GEMM(m+6, n, 0 .. descA->nt-1)
+
+// RW   DEPCM <- (m < 6 )  ? descC(m, n)
+           // <- (m >= 6)  ? DEPCM GEMM(m-6, n, k)
+           // // -> DEPCM GEMM(m+6, n, k)
 
 
 CTL ctla -> (k < (descA->nt-lookQ)) ? ctla RING_A(m, k+lookQ, n%Q)
