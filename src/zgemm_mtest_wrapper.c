@@ -36,17 +36,16 @@
 
 #include "parsec/utils/mca_param.h"
 
-static parsec_taskpool_t *
-dplasma_zgemm_z_New_mtest(dplasma_enum_t transA, dplasma_enum_t transB,
+parsec_taskpool_t *
+dplasma_zgemm_mtest_New(dplasma_enum_t transA, dplasma_enum_t transB,
                         dplasma_complex64_t alpha, const parsec_tiled_matrix_t* A, const parsec_tiled_matrix_t* B,
-                        dplasma_complex64_t beta,  parsec_tiled_matrix_t* C,
-                        dplasma_info_t opt)
+                        dplasma_complex64_t beta,  parsec_tiled_matrix_t* C)
 {
     int P, Q, IP, JQ, m, n;
     parsec_taskpool_t *zgemm_tp;
     parsec_matrix_block_cyclic_t *Cdist;
 
-    P = ((parsec_matrix_block_cyclic_t*)C)->grid.rows;
+    P = ((parsec_matrix_block_cyclic_t*)C)->grid.rows; // currently casting as wrong type
     Q = ((parsec_matrix_block_cyclic_t*)C)->grid.cols;
     IP = ((parsec_matrix_block_cyclic_t*)C)->grid.ip;
     JQ = ((parsec_matrix_block_cyclic_t*)C)->grid.jq;
@@ -124,12 +123,11 @@ dplasma_zgemm_z_New_mtest(dplasma_enum_t transA, dplasma_enum_t transB,
 
     assert(shape == MAX_SHAPES);
 
-    (void)opt; //No user-defined options for this algorithm
     return zgemm_tp;
 }
 
 static parsec_taskpool_t *
-dplasma_zgemm_z_New_default(dplasma_enum_t transA, dplasma_enum_t transB,
+dplasma_zgemm_mtest_New_default(dplasma_enum_t transA, dplasma_enum_t transB,
                           dplasma_complex64_t alpha, const parsec_tiled_matrix_t* A, const parsec_tiled_matrix_t* B,
                           dplasma_complex64_t beta,  parsec_tiled_matrix_t* C,
                           dplasma_info_t opt)
@@ -194,7 +192,7 @@ dplasma_zgemm_z_New_default(dplasma_enum_t transA, dplasma_enum_t transB,
  *
  * @ingroup dplasma_complex64
  *
- *  dplasma_zgemm_z_New - Generates the taskpool that performs one of the following
+ *  dplasma_zgemm_mtest_New - Generates the taskpool that performs one of the following
  *  matrix-matrix operations. WARNING: The computations are not done by this call.
  *
  *    \f[ C = \alpha [op( A )\times op( B )] + \beta C \f],
@@ -247,15 +245,15 @@ dplasma_zgemm_z_New_default(dplasma_enum_t transA, dplasma_enum_t transB,
  *
  *******************************************************************************
  *
- * @sa dplasma_zgemm_z
- * @sa dplasma_zgemm_z_Destruct
+ * @sa dplasma_zgemm_mtest
+ * @sa dplasma_zgemm_mtest_Destruct
  * @sa dplasma_cgemm_z_New
  * @sa dplasma_dgemm_z_New
  * @sa dplasma_sgemm_z_New
  *
  ******************************************************************************/
 parsec_taskpool_t*
-dplasma_zgemm_z_New_ex( dplasma_enum_t transA, dplasma_enum_t transB,
+dplasma_zgemm_mtest_New_ex( dplasma_enum_t transA, dplasma_enum_t transB,
                       dplasma_complex64_t alpha, const parsec_tiled_matrix_t* A, const parsec_tiled_matrix_t* B,
                       dplasma_complex64_t beta,  parsec_tiled_matrix_t* C, dplasma_info_t opt)
 {
@@ -263,33 +261,20 @@ dplasma_zgemm_z_New_ex( dplasma_enum_t transA, dplasma_enum_t transB,
 
     /* Check input arguments */
     if ((transA != dplasmaNoTrans) && (transA != dplasmaTrans) && (transA != dplasmaConjTrans)) {
-        dplasma_error("dplasma_zgemm_z_New", "illegal value of transA");
+        dplasma_error("dplasma_zgemm_mtest_New", "illegal value of transA");
         return NULL /*-1*/;
     }
     if ((transB != dplasmaNoTrans) && (transB != dplasmaTrans) && (transB != dplasmaConjTrans)) {
-        dplasma_error("dplasma_zgemm_z_New", "illegal value of transB");
+        dplasma_error("dplasma_zgemm_mtest_New", "illegal value of transB");
         return NULL /*-2*/;
     }
 
     if ( C->dtype & parsec_matrix_block_cyclic_type ) {
-        zgemm_tp = dplasma_zgemm_z_New_mtest(transA, transB, alpha, A, B, beta, C, opt);
+        zgemm_tp = dplasma_zgemm_mtest_New(transA, transB, alpha, A, B, beta, C);
         return zgemm_tp;
     }
-    zgemm_tp = dplasma_zgemm_z_New_default(transA, transB, alpha, A, B, beta, C, opt);
+    zgemm_tp = dplasma_zgemm_mtest_New_default(transA, transB, alpha, A, B, beta, C, opt);
     return zgemm_tp;
-}
-
-parsec_taskpool_t*
-dplasma_zgemm_z_New( dplasma_enum_t transA, dplasma_enum_t transB,
-                   dplasma_complex64_t alpha, const parsec_tiled_matrix_t* A, const parsec_tiled_matrix_t* B,
-                   dplasma_complex64_t beta,  parsec_tiled_matrix_t* C)
-{
-    parsec_taskpool_t *tp;
-    dplasma_info_t opt;
-    dplasma_info_create(&opt);
-    tp = dplasma_zgemm_z_New_ex(transA, transB, alpha, A, B, beta, C, opt);
-    dplasma_info_free(&opt);
-    return tp;
 }
 
 /**
@@ -297,8 +282,8 @@ dplasma_zgemm_z_New( dplasma_enum_t transA, dplasma_enum_t transB,
  *
  * @ingroup dplasma_complex64
  *
- *  dplasma_zgemm_z_Destruct - Free the data structure associated to an taskpool
- *  created with dplasma_zgemm_z_New().
+ *  dplasma_zgemm_mtest_Destruct - Free the data structure associated to an taskpool
+ *  created with dplasma_zgemm_mtest_New().
  *
  *******************************************************************************
  *
@@ -308,12 +293,12 @@ dplasma_zgemm_z_New( dplasma_enum_t transA, dplasma_enum_t transB,
  *
  *******************************************************************************
  *
- * @sa dplasma_zgemm_z_New
- * @sa dplasma_zgemm_z
+ * @sa dplasma_zgemm_mtest_New
+ * @sa dplasma_zgemm_mtest
  *
  ******************************************************************************/
 void
-dplasma_zgemm_z_Destruct( parsec_taskpool_t *tp )
+dplasma_zgemm_mtest_Destruct( parsec_taskpool_t *tp )
 {
     parsec_zgemm_NN_taskpool_t *zgemm_tp = (parsec_zgemm_NN_taskpool_t *)tp;
     dplasma_data_collection_t *ddc_A = NULL, *ddc_B = NULL, *ddc_C = NULL;
@@ -417,21 +402,21 @@ dplasma_zgemm_z_Destruct( parsec_taskpool_t *tp )
  *
  *******************************************************************************
  *
- * @sa dplasma_zgemm_z_New
- * @sa dplasma_zgemm_z_Destruct
+ * @sa dplasma_zgemm_mtest_New
+ * @sa dplasma_zgemm_mtest_Destruct
  * @sa dplasma_cgemm_z
  * @sa dplasma_dgemm_z
  * @sa dplasma_sgemm_z
  *
  ******************************************************************************/
 int
-dplasma_zgemm_z( parsec_context_t *parsec,
+dplasma_zgemm_mtest( parsec_context_t *parsec,
                dplasma_enum_t transA, dplasma_enum_t transB,
                dplasma_complex64_t alpha, const parsec_tiled_matrix_t *A,
                                         const parsec_tiled_matrix_t *B,
                dplasma_complex64_t beta,        parsec_tiled_matrix_t *C)
 {
-    printf("calling zgemm_z in mtest version\n");
+    printf("calling zgemm_mtest in mtest version\n");
     parsec_taskpool_t *parsec_zgemm = NULL;
     int M, N, K;
     int Am, An, Ai, Aj, Amb, Anb;
@@ -439,11 +424,11 @@ dplasma_zgemm_z( parsec_context_t *parsec,
 
     /* Check input arguments */
     if ((transA != dplasmaNoTrans) && (transA != dplasmaTrans) && (transA != dplasmaConjTrans)) {
-        dplasma_error("dplasma_zgemm_z", "illegal value of transA");
+        dplasma_error("dplasma_zgemm_mtest", "illegal value of transA");
         return -1;
     }
     if ((transB != dplasmaNoTrans) && (transB != dplasmaTrans) && (transB != dplasmaConjTrans)) {
-        dplasma_error("dplasma_zgemm_z", "illegal value of transB");
+        dplasma_error("dplasma_zgemm_mtest", "illegal value of transB");
         return -2;
     }
 
@@ -480,15 +465,15 @@ dplasma_zgemm_z( parsec_context_t *parsec,
     }
 
     if ( (Amb != C->mb) || (Anb != Bmb) || (Bnb != C->nb) ) {
-        dplasma_error("dplasma_zgemm_z", "tile sizes have to match");
+        dplasma_error("dplasma_zgemm_mtest", "tile sizes have to match");
         return -101;
     }
     if ( (Am != C->m) || (An != Bm) || (Bn != C->n) ) {
-        dplasma_error("dplasma_zgemm_z", "sizes of matrices have to match");
+        dplasma_error("dplasma_zgemm_mtest", "sizes of matrices have to match");
         return -101;
     }
     if ( (Ai != C->i) || (Aj != Bi) || (Bj != C->j) ) {
-        dplasma_error("dplasma_zgemm_z", "start indexes have to match");
+        dplasma_error("dplasma_zgemm_mtest", "start indexes have to match");
         return -101;
     }
 
@@ -501,7 +486,7 @@ dplasma_zgemm_z( parsec_context_t *parsec,
         ((alpha == (dplasma_complex64_t)0.0 || K == 0) && beta == (dplasma_complex64_t)1.0))
         return 0;
 
-    parsec_zgemm = dplasma_zgemm_z_New(transA, transB,
+    parsec_zgemm = dplasma_zgemm_mtest_New(transA, transB,
                                     alpha, A, B,
                                     beta, C);
 

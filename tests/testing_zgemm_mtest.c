@@ -77,13 +77,13 @@ int main(int argc, char ** argv)
         for(t = 0; t < nruns; t++) {
             parsec_devices_release_memory();
             /* Create PaRSEC */
-            PASTE_CODE_ENQUEUE_PROGRESS_DESTRUCT_KERNEL(parsec, zgemm_z,
+            PASTE_CODE_ENQUEUE_PROGRESS_DESTRUCT_KERNEL(parsec, zgemm_mtest,
                                       (tA, tB, alpha,
                                        (parsec_tiled_matrix_t *)&dcA,
                                        (parsec_tiled_matrix_t *)&dcB,
                                        beta,
                                        (parsec_tiled_matrix_t *)&dcC),
-                                      dplasma_zgemm_Destruct( PARSEC_zgemm_z ));
+                                      dplasma_zgemm_mtest_Destruct( PARSEC_zgemm_mtest ));
 
             parsec_devices_reset_load(parsec);
         }
@@ -145,14 +145,14 @@ int main(int argc, char ** argv)
 
                 /* Create GEMM PaRSEC */
                 if(loud) printf("Compute ... ... ");
-                    PASTE_CODE_ENQUEUE_PROGRESS_DESTRUCT_KERNEL(parsec, zgemm_z,
+                    PASTE_CODE_ENQUEUE_PROGRESS_DESTRUCT_KERNEL(parsec, zgemm_mtest,
                               (trans[tA], trans[tB],
                                (dplasma_complex64_t)alpha,
                                (parsec_tiled_matrix_t *)&dcA,
                                (parsec_tiled_matrix_t *)&dcB,
                                (dplasma_complex64_t)beta,
                                (parsec_tiled_matrix_t *)&dcC),
-                              dplasma_zgemm_Destruct( PARSEC_zgemm_z ));
+                              dplasma_zgemm_mtest_Destruct( PARSEC_zgemm_mtest ));
 
                 if(loud) printf("Done\n");
 

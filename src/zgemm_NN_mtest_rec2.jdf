@@ -8,12 +8,13 @@ extern "C" %{
  * $COPYRIGHT
  *
  */
- /* Daniel Mishler attempt to make no migrations occur in a ptg gemm */
 #include "dplasmajdf.h"
 #include "dplasmaaux.h"
 #include "parsec/data_dist/matrix/matrix.h"
 #include "parsec/data_dist/matrix/two_dim_rectangle_cyclic.h"
+#include "parsec/data_dist/matrix/subtile.h" // necessary for subtile_desc_t*
 #include <math.h>
+#include "parsec/recursive.h" // necessary for parsec_recursivecall
 
 #if defined(DPLASMA_HAVE_CUDA)
 #include <cublas.h>
@@ -49,8 +50,7 @@ extern "C" %{
  *
  */
 
-/* As of 2023-03-06, only NN is implemented */
-#include "zgemm_NN_mtest.h"
+#include "zgemm_NN.h"
 
 %}
 
@@ -61,10 +61,10 @@ extern "C" %{
 /* Keep this first, as in all jdf in this directory, to
  * enable switching between GEMM implementations.
  */
-gemm_type [ type = int hidden=on default="DPLASMA_ZGEMM_NN_MTEST" ]
+gemm_type [ type = int hidden=on default="DPLASMA_ZGEMM_NN" ]
 
-transA [type = int]
-transB [type = int]
+transA [ type = int ]
+transB [ type = int ]
 
 alpha  [type = dplasma_complex64_t]
 beta   [type = dplasma_complex64_t]
@@ -80,12 +80,18 @@ descC      [type = "parsec_tiled_matrix_t*" hidden = on default = "((dplasma_dat
 
 Cdist  [type = "parsec_data_collection_t *"]
 
-P      [type = "int" hidden=on default="((parsec_matrix_block_cyclic_t*)descC)->grid.rows"]
-Q      [type = "int" hidden=on default="((parsec_matrix_block_cyclic_t*)descC)->grid.cols"]
+/** We need to keep the set of handle-globals the same between
+ *  zgemm_*.jdf, to ensure that all handles can be destroyed
+ *  with a generic function. P and Q are unused here. */
+P      [type = "int" hidden=on default="-1"]
+Q      [type = "int" hidden=on default="-1"]
 
 /* Look ahead on both dimensions */
 lookP  [type = "int" hidden=on default="dplasma_aux_getGEMMLookahead(descC)"]
 lookQ  [type = "int" hidden=on default="dplasma_aux_getGEMMLookahead(descC)"]
+
+// smallnb       [type = "int" hidden = on default = "descA->mb" ]
+smallnb       [type = "int" hidden = on default = 100 ]
 
 /**************************************************
  *                       READ_A                   *
@@ -99,39 +105,11 @@ loc_A = %{ return LOC(descA, m, k); %}
 
 : descA(m, k)
 
-READ A <- ddescA(m, k)        [ type        = %{ return ADTT_READ(ddescA, loc_A, A_SHAPE, TILED); %}
-                                type_data   = %{ return ADTT_READ(ddescA, loc_A, A_SHAPE, LAPACK); %} ]
-       -> A RING_A(m, k, k%Q) /* dep OUT: rely on datacopy dtt for sending */
-/* has to be here because I don't know how ringa works */
-// READ DEPA <- ddescA(m, k)
-          // -> DEPA GEMM(m, 0 .. descC->nt-1, k)
-// READ ALLREADA <- ddescA(m,k)
-              // -> (m == descA->mt-1 && k==descA->nt-1) ? ALLREADA GEMM(0 .. descC->mt-1, 0 .. descC->nt-1, 0 .. descA->nt-1)
+READ A <- ddescA(m, k)                   [ type        = %{ return ADTT_READ(ddescA, loc_A, A_SHAPE, TILED); %}
+                                           type_data   = %{ return ADTT_READ(ddescA, loc_A, A_SHAPE, LAPACK); %} ]
+       -> A GEMM(m, 0 .. descC->nt-1, k) /* dep OUT: rely on datacopy dtt for sending */
 
-BODY
-{
-    printlog("rank %u <- A(%d,%d)\n", ((parsec_data_collection_t*)descA)->myrank, m, k);
-}
-END
-
-RING_A(m, k, q)  [profile = off]
-
-m = 0 .. descA->mt-1
-k = 0 .. descA->nt-1
-q = 0 .. Q-1
-prevq = (q-1+Q)%Q
-nextq = (q+1)%Q
-
-loc_A = %{ return LOC(descA, m, k); %}
-
-: Cdist(m, q)
-
-READ A <- (k%Q == q) ? A READ_A(m, k) : A RING_A(m, k, prevq) [ type_remote = %{ return ADTT_DC(ddescA, loc_A, A_SHAPE, TILED); %} ]
-       -> A GEMM(m, q .. descC->nt-1 .. Q, k)                 /* dep OUT: rely on datacopy dtt for sending */
-       -> (nextq != (k%Q)) ? A RING_A(m, k, nextq)            /* dep OUT: rely on datacopy dtt for sending */
-// CTL  ALLRINGA -> (m == descA->mt-1 && k == descA->nt-1 && q == Q-1) ? ALLRINGA GEMM(0 .. descC->mt-1, 0 .. descC->nt-1, 0 .. descA->nt-1)
-
-CTL ctla <- (k >= lookQ) ? ctla GEMM(m, q .. descC->nt-1 .. Q, k-lookQ)
+CTL ctla <- (k >= lookQ) ? ctla GEMM(m, 0 .. descC->nt-1, k-lookQ)
 
 BODY
 {
@@ -144,113 +122,24 @@ END
  **************************************************/
 READ_B(k, n) [profile = off]
 
-n = 0 .. descB->nt-1
 k = 0 .. descB->mt-1
+n = 0 .. descB->nt-1
 
 loc_B = %{ return LOC(descB, k, n); %}
 
 : descB(k, n)
 
-READ B <- ddescB(k, n)        [ type        = %{ return ADTT_READ(ddescB, loc_B, B_SHAPE, TILED); %}
-                                type_data   = %{ return ADTT_READ(ddescB, loc_B, B_SHAPE, LAPACK); %} ]
-       -> B RING_B(k, n, k%P) /* dep OUT: rely on datacopy dtt for sending */
-// READ ALLREADB <- ddescB(k,n)
-              // -> (k == descB->nt-1 && n == descB->mt-1) ? ALLREADB GEMM(0 .. descC->mt-1, 0 .. descC->nt-1, 0 .. descA->nt-1)
+READ B <- ddescB(k, n)                   [ type        = %{ return ADTT_READ(ddescB, loc_B, B_SHAPE, TILED); %}
+                                           type_data   = %{ return ADTT_READ(ddescB, loc_B, B_SHAPE, LAPACK); %} ]
+       -> B GEMM(0 .. descC->mt-1, n, k) /* dep OUT: rely on datacopy dtt for sending */
+
+CTL ctlb <- (k >= lookP) ? ctlb GEMM(0 .. descC->mt-1, n, k-lookP)
+
 BODY
 {
      printlog("rank %u <- B(%d,%d)\n", ((parsec_data_collection_t*)descB)->myrank, k, n);
 }
 END
-
-RING_B(k, n, p)  [profile = off]
-
-k = 0 .. descB->mt-1
-n = 0 .. descB->nt-1
-p = 0 .. P-1
-prevp = (p-1+P)%P
-nextp = (p+1)%P
-
-loc_B = %{ return LOC(descB, k, n); %}
-
-: Cdist(p, n)
-
-READ B <- (k%P == p) ? B READ_B(k, n) : B RING_B(k, n, prevp) [ type_remote = %{ return ADTT_DC(ddescB, loc_B, B_SHAPE, TILED); %} ]
-       -> B GEMM(p .. descC->mt-1 .. P, n, k)                 /* dep OUT: rely on datacopy dtt for sending */
-       -> (nextp != (k%P)) ? B RING_B(k, n, nextp)            /* dep OUT: rely on datacopy dtt for sending */
-
-CTL ctlb <- (k >= lookP) ? ctlb GEMM(p .. descC->mt-1 .. P, n, k-lookP)
-
-BODY
-{
-    printlog("rank %u <- B(%d,%d)\n", ((parsec_data_collection_t*)descB)->myrank, k, n);
-}
-END
-
-/**************************************************
- *              SUPERTILE_BEGIN_8x8               *
- **************************************************/
-SUPERTILE_BEGIN_8x8(mst, nst) [profile = off]
-mst = 0 .. (((descC->mt)-1)/ 8)
-nst = 0 .. (((descC->nt)-1)/ 8)
-
-: descC(mst*8, nst*8)
-// : descB(0,0)
-
-CTL TILE_BEGIN -> TILE_BEGIN GEMM(mst*8 .. mst*8+7, nst*8 .. nst*8+7, 0)
-CTL SPTILE_BEGIN <- (mst > 0) ? SPTILE_BEGIN SUPERTILE_MID_8x8(mst-1,nst)
-              <- (mst == 0 && nst > 0) ? SPTILE_BEGIN SUPERTILE_MID_8x8((descC->mt)/8-1,nst-1)
-
-
-
-BODY
-{
-    printlog("supertile_begin_8x8 for mst=%d,nst=%d\n", mst, nst);
-    // printf("supertile_begin_8x8 for mst=%d,nst=%d\n", mst, nst);
-}
-END
-
-/**************************************************
- *              SUPERTILE_MID_8x8                *
- **************************************************/
-SUPERTILE_MID_8x8(mst, nst) [profile = off]
-mst = 0 .. (((descC->mt) / 8) - 1)
-nst = 0 .. (((descC->nt) / 8) - 1)
-
-: descC(mst*8, nst*8)
-// : descB(0,0)
-
-CTL TILE_MID <- TILE_MID GEMM(mst*8 .. mst*8+7, nst*8 .. nst*8+7, (descA->nt-1)/2)
-CTL SPTILE_BEGIN -> (mst == (descC->mt)/8-1) ? SPTILE_BEGIN SUPERTILE_BEGIN_8x8(0, nst+1)
-                 -> SPTILE_BEGIN SUPERTILE_BEGIN_8x8(mst+1,nst)
-
-
-BODY
-{
-    printlog("supertile_mid_8x8 for mst=%d,nst=%d\n", mst, nst);
-    // printf("supertile_mid_8x8 for mst=%d,nst=%d\n", mst, nst);
-}
-END
-
-/**************************************************
- *              SUPERTILE_END_8x8                *
- **************************************************/
-SUPERTILE_END_8x8(mst, nst) [profile = off]
-mst = 0 .. ((descC->mt-1) / 8)
-nst = 0 .. ((descC->nt-1) / 8)
-
-: descC(mst*8, nst*8)
-// : descB(0,0)
-
-CTL TILE_END <- TILE_END GEMM(mst*8 .. mst*8+7, nst*8 .. nst*8+7, descA->nt-1)
-
-
-BODY
-{
-    printlog("supertile_end_8x8 for mst=%d,nst=%d\n", mst, nst);
-    // printf("supertile_end_8x8 for mst=%d,nst=%d\n", mst, nst);
-}
-END
-
 
 /**************************************************
  *                       GEMM                     *
@@ -270,8 +159,8 @@ loc_C = %{ return LOC(descC, m, n); %}
 : descC(m, n)
 
 // Parameters
-READ A <- A RING_A(m, k, n%Q)                         [ type_remote = %{ return ADTT_DC(ddescA, loc_A, A_SHAPE, TILED); %} ]
-READ B <- B RING_B(k, n, m%P)                         [ type_remote = %{ return ADTT_DC(ddescB, loc_B, B_SHAPE, TILED); %} ]
+READ A <- A READ_A(m, k)                              [ type_remote = %{ return ADTT_DC(ddescA, loc_A, A_SHAPE, TILED); %} ]
+READ B <- B READ_B(k, n)                              [ type_remote = %{ return ADTT_DC(ddescB, loc_B, B_SHAPE, TILED); %} ]
 RW   C <- (k == 0)             ? ddescC(m, n)         [ type        = %{ return ADTT_READ(ddescC, loc_C, C_SHAPE, TILED); %}
                                                         type_data   = %{ return ADTT_READ(ddescC, loc_C, C_SHAPE, LAPACK); %} ]
        <- (k != 0)             ? C GEMM( m, n, k-1 )  [ type_remote = %{ return ADTT_DC(ddescC, loc_C, C_SHAPE, TILED); %} ]
@@ -280,21 +169,10 @@ RW   C <- (k == 0)             ? ddescC(m, n)         [ type        = %{ return 
        -> (k != (descA->nt-1)) ? C GEMM( m, n, k+1 )  /* dep OUT: rely on datacopy dtt for sending */
 
 
-CTL TILE_BEGIN <- (k == 0) ? TILE_BEGIN SUPERTILE_BEGIN_8x8(m/8,n/8)
-CTL TILE_MID -> (k == ((descA->nt-1)/2)) ? TILE_MID SUPERTILE_MID_8x8(m/8,n/8)
-CTL TILE_END -> (k == ((descA->nt-1))) ? TILE_END SUPERTILE_END_8x8(m/8,n/8)
+CTL ctla -> (k < (descA->nt-lookQ)) ? ctla READ_A(m, k+lookQ)
+CTL ctlb -> (k < (descA->nt-lookP)) ? ctlb READ_B(k+lookP, n)
 
-
-CTL ctla -> (k < (descA->nt-lookQ)) ? ctla RING_A(m, k+lookQ, n%Q)
-CTL ctlb -> (k < (descA->nt-lookP)) ? ctlb RING_B(k+lookP, n, m%P)
-
-BODY [type=CUDA
-      A.size=%{ return descA->mb*descA->nb*parsec_datadist_getsizeoftype(descA->mtype);%}
-      B.size=%{ return descB->mb*descB->nb*parsec_datadist_getsizeoftype(descB->mtype);%}
-      C.size=%{ return descC->mb*descC->nb*parsec_datadist_getsizeoftype(descC->mtype);%}
-      A.dc=ddescA B.dc=ddescB C.dc=ddescC
-      stage_in=stage_in_lapack
-      stage_out=stage_out_lapack]
+BODY [type=CUDA]
 {
 #if defined(PRECISION_z) || defined(PRECISION_c)
     cuDoubleComplex lalpha = make_cuDoubleComplex(creal(alpha), cimag(alpha));
@@ -307,13 +185,13 @@ BODY [type=CUDA
     int tempmm = m == descC->mt-1 ? descC->m - m * descC->mb : descC->mb;
     int tempnn = n == descC->nt-1 ? descC->n - n * descC->nb : descC->nb;
     int tempkk = k == descA->nt-1 ? descA->n - k * descA->nb : descA->nb;
-    int ldam = descA->mb;
-    int ldbk = descB->mb;
-    int ldcm = descC->mb;
+    int ldam = LDA(ddescA, A);
+    int ldbk = LDA(ddescB, B);
+    int ldcm = LDA(ddescC, C);
 
     cublasStatus_t status;
     cublasSetKernelStream( parsec_body.stream );
-    cublasZgemm(dplasma_lapack_const(transA), dplasma_lapack_const(transB),
+    cublasZgemm( dplasma_lapack_const(transA), dplasma_lapack_const(transB),
              tempmm, tempnn, tempkk,
              lalpha, (cuDoubleComplex*)A, ldam,
                      (cuDoubleComplex*)B, ldbk,
@@ -324,9 +202,54 @@ BODY [type=CUDA
 }
 END
 
+
+BODY [type=RECURSIVE]
+{
+    int tempmm = m == descA->mt-1 ? descA->m - m * descA->mb : descA->mb;
+    // printf("recursive call! I am m=%d n=%d k=%d\n", m, n, k);
+    // printf("tempmm = %d descA->nb = %d\n", tempmm, descA->nb);
+
+    if ( (tempmm > smallnb) || (descA->nb > smallnb) )
+    {
+        subtile_desc_t *small_descA;
+        subtile_desc_t *small_descB;
+        subtile_desc_t *small_descC;
+        parsec_taskpool_t *parsec_zgemm;
+
+        small_descA = subtile_desc_create( descA, m, k,
+                                           smallnb, smallnb, 0, 0, tempmm, descA->nb );
+        small_descA->mat = A;
+
+        small_descB = subtile_desc_create( descA, n, k,
+                                           smallnb, smallnb, 0, 0, descA->mb, descA->nb );
+        small_descB->mat = B;
+
+        small_descC = subtile_desc_create( descA, m, n,
+                                           smallnb, smallnb, 0, 0, tempmm, descA->nb );
+        small_descC->mat = C;
+
+        parsec_zgemm = dplasma_zgemm_mtest_New(dplasmaNoTrans, dplasmaNoTrans,
+                                              (dplasma_complex64_t) 1.0,
+                                              (parsec_tiled_matrix_t *)small_descA,
+                                              (parsec_tiled_matrix_t *)small_descB,
+                                              (dplasma_complex64_t) 1.0,
+                                              (parsec_tiled_matrix_t *)small_descC);
+
+        parsec_recursivecall((parsec_task_t*)this_task,
+                             parsec_zgemm, dplasma_zgemm_Destruct,
+                             3, small_descA, small_descB, small_descC );
+
+        // printf("go async\n");
+        return PARSEC_HOOK_RETURN_ASYNC;
+    }
+    /* Go to CPU sequential kernel */
+    // printf("go next\n");
+    return PARSEC_HOOK_RETURN_NEXT;
+}
+END
+
 BODY
 {
-
     dplasma_complex64_t lbeta = (k == 0) ? beta : (dplasma_complex64_t)1.0;
     int tempmm = m == descC->mt-1 ? descC->m - m * descC->mb : descC->mb;
     int tempnn = n == descC->nt-1 ? descC->n - n * descC->nb : descC->nb;
@@ -335,7 +258,6 @@ BODY
     int ldbk = LDA(ddescB, B);
     int ldcm = LDA(ddescC, C);
 
-    // printf("GEMM m=%d, n=%d, k=%d\n", m, n, k);
     CORE_zgemm(transA, transB,
                tempmm, tempnn, tempkk,
                alpha, A /*A(m, k)*/, ldam,

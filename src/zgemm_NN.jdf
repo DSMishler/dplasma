@@ -86,8 +86,6 @@ Q      [type = "int" hidden=on default="-1"]
 lookP  [type = "int" hidden=on default="dplasma_aux_getGEMMLookahead(descC)"]
 lookQ  [type = "int" hidden=on default="dplasma_aux_getGEMMLookahead(descC)"]
 
-smallnb       [type = "int" hidden = on default = "descA->mb" ]
-
 /**************************************************
  *                       READ_A                   *
  **************************************************/
