@@ -162,6 +162,7 @@ set(SOURCES
   zsymm_wrapper.c
   zsyr2k_wrapper.c
   zsyrk_wrapper.c
+  zsyrk_pcctest_wrapper.c
   ztrmm_wrapper.c
   ztrsm_wrapper.c
   # Level 2 Blas

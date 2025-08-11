@@ -30,6 +30,7 @@ set(TESTS
    testing_zsymm.c
    testing_zherk.c
    testing_zsyrk.c
+   testing_zsyrk_pcctest.c
    testing_zher2k.c
    testing_zsyr2k.c
    testing_ztrmm.c
