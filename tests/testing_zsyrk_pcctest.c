@@ -19,6 +19,7 @@ static int check_solution( parsec_context_t *parsec, int loud,
 
 int main(int argc, char ** argv)
 {
+    printf("zsyrk testing\n");
     parsec_context_t* parsec;
     int iparam[IPARAM_SIZEOF];
     int ret = 0;
@@ -37,6 +38,7 @@ int main(int argc, char ** argv)
 
     M = N;
     LDC = max(LDC, N);
+
 
     if(!check)
     {

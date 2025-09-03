@@ -13,7 +13,7 @@
 
 #include "zsyrk_LN.h"
 #include "zsyrk_LT.h"
-#include "zsyrk_UN.h"
+#include "zsyrk_pcctest_UN.h"
 #include "zsyrk_UT.h"
 
 /**
