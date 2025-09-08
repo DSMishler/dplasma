@@ -48,7 +48,7 @@ BODY
     CORE_zsyrk(uplo, trans, tempnn, tempkn,
                alpha, A /* descA(n,k) */, ldan,
                zbeta, C /* descC(n,n) */, ldcn );
-    printf("This is MY zsyrk!!\n");
+    printf("This is PCCTEST zsyrk!\n");
 }
 END
 

@@ -43,6 +43,9 @@ int dplasma_zsymm( parsec_context_t *parsec, dplasma_enum_t side, dplasma_enum_t
 int dplasma_zsyrk( parsec_context_t *parsec, dplasma_enum_t uplo, dplasma_enum_t trans,
                    dplasma_complex64_t alpha, const parsec_tiled_matrix_t *A,
                    dplasma_complex64_t beta,  parsec_tiled_matrix_t *C);
+int dplasma_zsyrk_pcctest( parsec_context_t *parsec, dplasma_enum_t uplo, dplasma_enum_t trans,
+                   dplasma_complex64_t alpha, const parsec_tiled_matrix_t *A,
+                   dplasma_complex64_t beta,  parsec_tiled_matrix_t *C);
 int dplasma_zsyr2k( parsec_context_t *parsec, dplasma_enum_t uplo, dplasma_enum_t trans,
                     dplasma_complex64_t alpha, const parsec_tiled_matrix_t *A, const parsec_tiled_matrix_t *B,
                     dplasma_complex64_t beta,  parsec_tiled_matrix_t *C);
@@ -144,6 +147,9 @@ parsec_taskpool_t* dplasma_zsymm_New( dplasma_enum_t side, dplasma_enum_t uplo,
 parsec_taskpool_t* dplasma_zsyrk_New( dplasma_enum_t uplo, dplasma_enum_t trans,
                                    dplasma_complex64_t alpha, const parsec_tiled_matrix_t *A,
                                    dplasma_complex64_t beta,  parsec_tiled_matrix_t *C);
+parsec_taskpool_t* dplasma_zsyrk_pcctest_New( dplasma_enum_t uplo, dplasma_enum_t trans,
+                                   dplasma_complex64_t alpha, const parsec_tiled_matrix_t *A,
+                                   dplasma_complex64_t beta,  parsec_tiled_matrix_t *C);
 parsec_taskpool_t* dplasma_zsyr2k_New( dplasma_enum_t uplo, dplasma_enum_t trans,
                                     dplasma_complex64_t alpha, const parsec_tiled_matrix_t *A,
                                     const parsec_tiled_matrix_t *B,
@@ -217,6 +223,7 @@ void dplasma_zherk_Destruct( parsec_taskpool_t *o );
 void dplasma_zsymm_Destruct( parsec_taskpool_t *o );
 void dplasma_zsyr2k_Destruct(parsec_taskpool_t *o );
 void dplasma_zsyrk_Destruct( parsec_taskpool_t *o );
+void dplasma_zsyrk_pcctest_Destruct( parsec_taskpool_t *o );
 void dplasma_ztrmm_Destruct( parsec_taskpool_t *o );
 void dplasma_ztrsm_Destruct( parsec_taskpool_t *o );
 

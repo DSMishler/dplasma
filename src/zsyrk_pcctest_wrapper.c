@@ -71,10 +71,10 @@
  *
  *******************************************************************************
  *
- * @sa dplasma_zsyrk
- * @sa dplasma_csyrk_New
- * @sa dplasma_dsyrk_New
- * @sa dplasma_ssyrk_New
+ * @sa dplasma_zsyrk_pcctest
+ * @sa dplasma_csyrk_pcctest_New
+ * @sa dplasma_dsyrk_pcctest_New
+ * @sa dplasma_ssyrk_pcctest_New
  *
  ******************************************************************************/
 parsec_taskpool_t*
@@ -104,7 +104,7 @@ dplasma_zsyrk_pcctest_New( dplasma_enum_t uplo,
     else {
         if ( trans == dplasmaNoTrans ) {
             tp = (parsec_taskpool_t*)
-                parsec_zsyrk_UN_new(uplo, trans,
+                parsec_zsyrk_pcctest_UN_new(uplo, trans,
                                    alpha, A,
                                    beta,  C);
         }
@@ -131,7 +131,7 @@ dplasma_zsyrk_pcctest_New( dplasma_enum_t uplo,
  * @ingroup dplasma_complex64
  *
  *  dplasma_zsyrk_pcctest_Destruct - Free the data structure associated to an taskpool
- *  created with dplasma_zsyrk_New().
+ *  created with dplasma_zsyrk_pcctest_New().
  *
  *******************************************************************************
  *
@@ -141,8 +141,8 @@ dplasma_zsyrk_pcctest_New( dplasma_enum_t uplo,
  *
  *******************************************************************************
  *
- * @sa dplasma_zsyrk_New
- * @sa dplasma_zsyrk
+ * @sa dplasma_zsyrk_pcctest_New
+ * @sa dplasma_zsyrk_pcctest
  *
  ******************************************************************************/
 void
@@ -209,9 +209,9 @@ dplasma_zsyrk_pcctest_Destruct( parsec_taskpool_t *tp )
  *
  * @sa dplasma_zsyrk_pcctest_New
  * @sa dplasma_zsyrk_pcctest_Destruct
- * @sa dplasma_csyrk
- * @sa dplasma_dsyrk
- * @sa dplasma_ssyrk
+ * @sa dplasma_csyrk_pcctest
+ * @sa dplasma_dsyrk_pcctest
+ * @sa dplasma_ssyrk_pcctest
  *
  ******************************************************************************/
 int

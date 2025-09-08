@@ -19,7 +19,7 @@ static int check_solution( parsec_context_t *parsec, int loud,
 
 int main(int argc, char ** argv)
 {
-    printf("zsyrk testing\n");
+    printf("[**] zsyrk pcc testing [**]\n");
     parsec_context_t* parsec;
     int iparam[IPARAM_SIZEOF];
     int ret = 0;
@@ -66,15 +66,15 @@ int main(int argc, char ** argv)
         if(loud > 2) printf("Done\n");
 
         /* Create PaRSEC */
-        PASTE_CODE_ENQUEUE_KERNEL(parsec, zsyrk,
+        PASTE_CODE_ENQUEUE_KERNEL(parsec, zsyrk_pcctest,
                                   (uplo, trans,
                                    alpha, (parsec_tiled_matrix_t *)&dcA,
                                    beta,  (parsec_tiled_matrix_t *)&dcC));
 
         /* lets rock! */
-        PASTE_CODE_PROGRESS_KERNEL(parsec, zsyrk);
+        PASTE_CODE_PROGRESS_KERNEL(parsec, zsyrk_pcctest);
 
-        dplasma_zsyrk_Destruct( PARSEC_zsyrk );
+        dplasma_zsyrk_pcctest_Destruct( PARSEC_zsyrk_pcctest );
 
         parsec_data_free(dcA.mat);
         parsec_tiled_matrix_destroy( (parsec_tiled_matrix_t*)&dcA);
