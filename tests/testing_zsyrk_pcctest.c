@@ -2,9 +2,10 @@
  * Copyright (c) 2009-2024 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
- *
+ */
+
+/*
  * @precisions normal z -> z c
- *
  */
 
 #include "common.h"

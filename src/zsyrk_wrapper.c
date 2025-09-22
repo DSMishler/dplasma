@@ -21,7 +21,7 @@
  *
  * @ingroup dplasma_complex64
  *
- *  dplasm_zsyrk_New - Generates the taskpool that performs the following operation
+ *  dplasma_zsyrk_New - Generates the taskpool that performs the following operation
  *
  *    \f[ C = \alpha [ op( A ) \times op( A )' ] + \beta C \f],
  *
@@ -158,7 +158,7 @@ dplasma_zsyrk_Destruct( parsec_taskpool_t *tp )
  *
  * @ingroup dplasma_complex64
  *
- *  dplasm_zsyrk - Performs the following operation
+ *  dplasma_zsyrk - Performs the following operation
  *
  *    \f[ C = \alpha [ op( A ) \times op( A )' ] + \beta C \f],
  *
