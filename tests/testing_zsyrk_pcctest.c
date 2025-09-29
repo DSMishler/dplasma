@@ -5,7 +5,7 @@
  */
 
 /*
- * @precisions normal z -> z c
+ * @precisions normal z -> z d c s
  */
 
 #include "common.h"
@@ -20,14 +20,16 @@ static int check_solution( parsec_context_t *parsec, int loud,
 
 int main(int argc, char ** argv)
 {
-    printf("[**] zsyrk pcc testing [**]\n");
+    // printf("[**] zsyrk pcc testing [**]\n");
     parsec_context_t* parsec;
     int iparam[IPARAM_SIZEOF];
     int ret = 0;
     int Aseed = 3872;
     int Cseed = 2873;
-    dplasma_complex64_t alpha =  3.5 - I * 4.2;
-    dplasma_complex64_t beta  = -2.8 + I * 0.7;
+    // dplasma_complex64_t alpha =  3.5 - I * 4.2;
+    // dplasma_complex64_t beta  = -2.8 + I * 0.7;
+    dplasma_complex64_t alpha = 1;
+    dplasma_complex64_t beta  = 0;
 
     /* Set defaults for non argv iparams */
     iparam_default_gemm(iparam);
@@ -66,6 +68,12 @@ int main(int argc, char ** argv)
         dplasma_zplgsy( parsec, 0., uplo, (parsec_tiled_matrix_t *)&dcC, Cseed);
         if(loud > 2) printf("Done\n");
 
+        // printf("%f %f\n", alpha, beta);
+        // printf("printing A\n");
+        // dplasma_zprint( parsec, PARSEC_MATRIX_FULL, (parsec_tiled_matrix_t *)&dcA);
+        // printf("printing C\n");
+        // dplasma_zprint( parsec, uplo, (parsec_tiled_matrix_t *)&dcC);
+
         /* Create PaRSEC */
         PASTE_CODE_ENQUEUE_KERNEL(parsec, zsyrk_pcctest,
                                   (uplo, trans,
@@ -77,6 +85,8 @@ int main(int argc, char ** argv)
 
         dplasma_zsyrk_pcctest_Destruct( PARSEC_zsyrk_pcctest );
 
+        // printf("printing C\n");
+        // dplasma_zprint( parsec, uplo, (parsec_tiled_matrix_t *)&dcC);
         parsec_data_free(dcA.mat);
         parsec_tiled_matrix_destroy( (parsec_tiled_matrix_t*)&dcA);
         parsec_data_free(dcC.mat);

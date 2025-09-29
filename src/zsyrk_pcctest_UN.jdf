@@ -50,25 +50,67 @@ BODY
     CORE_zsyrk(uplo, trans, tempnn, tempkn,
                alpha, A /* descA(n,k) */, ldan,
                zbeta, C /* descC(n,n) */, ldcn );
-    printf("This is PCCTEST zsyrk zsyrk! (%d, %d, %d)\n", n, n, k);
+    // printf("This is PCCTEST zsyrk zsyrk! (%d, %d, %d)\n", n, n, k);
+    // ((dplasma_complex64_t *)C)[0] = 2.0; // signal of victory
 }
 END
 
 /*******************************************************************
- *              test_task                                          *
+ *              PCC_load_A                                         *
  *******************************************************************/
-// meant to just test if I can get it to do something
-test_task(n) [profile = off]
+// load in the matrix A, and add dependencies for the other tasks
+PCC_load_A(n, k) [profile = off]
   /* Execution Space */
-  n = 1 .. 2
+  n = 0..(descC->nt-1) // TODO: descC? Or descA??
+  k = 0..(descA->nt-1) // TODO: descC? Or descA??
 
   /* Locality */
-  : descA(0,0)
+  : descA(n,k)
+
+RW A <- descA(n,k)
+     -> A zsyrk_pcctest_in_data_A0(n,k)
+     -> A zgemm_in_data_A0(n,k) // TODO: this appears to over-give the data
+     -> B zgemm_in_data_A1(n,k)
+
+// old dependencies from trying to get it to read a full line and sort out
+// over here - for now we're going to just read in the correct file based
+// on n and k
+// CTL pass <- (n > 0) ? pass PCC_load_A(n-1)
+         // -> (n < descC->nt-1) ? pass PCC_load_A(n+1)
 
 BODY
 {
-    /* nothing */
-    printf("test task!\n");
+    char fname[100];
+    sprintf(fname, "split_sample_%d_%d.csv", n, k);
+    
+    int ldam = BLKLDD( descA, m );
+    int tempnn = (n == descA->nt-1) ? descA->n - n*descA->nb : descA->nb;
+    int tempkn = (k == descA->nt-1) ? descA->n - k*descA->nb : descA->nb;
+    if (descA->lm != descA->ln)
+    {
+        printf("warning!! matrix A not square??\n");
+    }
+    // printf("PCC load n=%d, k=%d, ldam=%d\n", n, k, ldam);
+    // printf("PCC load tempnn=%d, tempkn=%d\n", tempnn, tempkn);
+    // printf("do we have descA->lm & ln? %d %d\n", descA->lm, descA->ln);
+    FILE *f;
+    f = fopen(fname, "r");
+    int i, j;
+    int fsfrv;
+    for(i = 0; i < tempnn; i++)
+    {
+        for(j = 0; j < tempkn; j++)
+        {
+            fsfrv = fscanf(f, "%lf,", (&(((dplasma_complex64_t*)A)[i+ldam*j])));
+        }
+    }
+
+    if (fsfrv == 0)
+    {
+        ; // keep compilers happy
+    }
+    fclose(f);
+    // printf("Load A! This should load A(%d,%d)\n", n, k);
 }
 END
 
@@ -83,7 +125,7 @@ zsyrk_pcctest_in_data_A0(n, k) [profile = off]
   /* Locality */
   : descA(n,k)
 
-  READ  A    <- descA(n,k)
+  READ  A    <- A PCC_load_A(n,k)
              -> A zsyrk_pcctest(n, k)
 
 BODY
@@ -121,7 +163,7 @@ BODY
     dplasma_complex64_t zbeta = (k==0) ? beta : (dplasma_complex64_t)1.;
     int ldcn = BLKLDD( descC, n );
 
-    printf("This is PCCTEST zsyrk gemm! (%d, %d, %d)\n", n, m, k);
+    // printf("This is PCCTEST zsyrk gemm! (%d, %d, %d)\n", n, m, k);
     printlog("CORE_zgemm(%d, %d, %d)\n"
              "\t(trans, dplasmaTrans, tempnn, tempmm, tempkn, zalpha, A(%d,%d)[%p], ldan, A(%d,%d)[%p], ldam, zbeta, C(%d,%d)[%p], ldcn)\n",
              n, m, k, n, k, A, m, k, B, n, m, C);
@@ -144,7 +186,7 @@ zgemm_in_data_A1(m, k) [profile = off]
   /* Locality */
   : descA(m,k)
 
-  READ  B    <- descA(m,k)
+  READ  B    <- A PCC_load_A(m,k)
              -> B zgemm(0..(descC->mt-2), m, k)
 
 BODY
@@ -164,7 +206,7 @@ zgemm_in_data_A0(n, k) [profile = off]
   /* Locality */
   : descA(n,k)
 
-  READ  A    <- descA(n,k)
+  READ  A    <- A PCC_load_A(n,k)
              -> A zgemm(n, (n+1)..(descC->mt-1), k)
 
 BODY

@@ -28,7 +28,6 @@ dplasma_zplrnt_operator( parsec_execution_stream_t *es,
                          dplasma_enum_t uplo, int m, int n,
                          void *op_data )
 {
-    printf("zplrnt operator with m=%d, n=%d, A points to %p\n", m, n, _A);
     int tempmm, tempnn, ldam;
     zplrnt_args_t     *args = (zplrnt_args_t*)op_data;
     dplasma_complex64_t *A    = (dplasma_complex64_t*)_A;
