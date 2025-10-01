@@ -54,7 +54,7 @@ int main(int argc, char ** argv)
 
         PASTE_CODE_ALLOCATE_MATRIX(dcC, 1,
             parsec_matrix_sym_block_cyclic, (&dcC, PARSEC_MATRIX_COMPLEX_DOUBLE,
-                                       rank, MB, NB, LDC, N, 0, 0,
+                                       rank, MB, NB, N, N, 0, 0,
                                        N, N, P, nodes/P, uplo));
 
         /* matrix generation */

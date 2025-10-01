@@ -27,6 +27,7 @@ dplasma_zplgsy_operator( parsec_execution_stream_t *es,
                          dplasma_enum_t uplo, int m, int n,
                          void *op_data )
 {
+    // printf("zplgsy operator with m=%d, n=%d\n", m, n);
     int tempmm, tempnn, ldam;
     zplgsy_args_t     *args = (zplgsy_args_t*)op_data;
     dplasma_complex64_t *A    = (dplasma_complex64_t*)_A;

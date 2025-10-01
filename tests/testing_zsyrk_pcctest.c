@@ -39,6 +39,8 @@ int main(int argc, char ** argv)
     parsec = setup_parsec(argc, argv, iparam);
     PASTE_CODE_IPARAM_LOCALS(iparam);
 
+    // printf("LDC? %d\n", LDC);
+    // printf("NB MB? %d %d\n", NB, MB);
     M = N;
     LDC = max(LDC, N);
 
@@ -59,14 +61,29 @@ int main(int argc, char ** argv)
 
         PASTE_CODE_ALLOCATE_MATRIX(dcC, 1,
             parsec_matrix_sym_block_cyclic, (&dcC, PARSEC_MATRIX_COMPLEX_DOUBLE,
-                                       rank, MB, NB, LDC, N, 0, 0,
+                                       rank, MB, NB, N, N, 0, 0,
                                        N, N, P, nodes/P, uplo));
 
         /* matrix generation */
+        printf("size_n: %d\n", N);
+        printf("size_k: %d\n", K);
+        // printf("kernel loaded!\n");
+        // printf("generating matrices!\n");
         if(loud > 2) printf("+++ Generate matrices ... ");
+        void matrix_stats(parsec_tiled_matrix_t * pdcA)
+        {
+            printf("matrix stats for matrix\n");
+            printf("lm: %d\n", pdcA->lm);
+            printf("ln: %d\n", pdcA->ln);
+            return;
+        }
         dplasma_zplrnt( parsec, 0, (parsec_tiled_matrix_t *)&dcA,  Aseed);
+        // printf("generated A! Now C...\n");
+        // matrix_stats((parsec_tiled_matrix_t *)&dcA);
+        // matrix_stats((parsec_tiled_matrix_t *)&dcC);
         dplasma_zplgsy( parsec, 0., uplo, (parsec_tiled_matrix_t *)&dcC, Cseed);
         if(loud > 2) printf("Done\n");
+        // printf("matrices up! Enqueue-ing kernel!\n");
 
         // printf("%f %f\n", alpha, beta);
         // printf("printing A\n");
@@ -78,17 +95,22 @@ int main(int argc, char ** argv)
         PASTE_CODE_ENQUEUE_KERNEL(parsec, zsyrk_pcctest,
                                   (uplo, trans,
                                    alpha, (parsec_tiled_matrix_t *)&dcA,
-                                   beta,  (parsec_tiled_matrix_t *)&dcC));
+                                   beta,  (parsec_tiled_matrix_t *)&dcC) );
 
+        // printf("Kernel enqueue-ed.\n");
         /* lets rock! */
         PASTE_CODE_PROGRESS_KERNEL(parsec, zsyrk_pcctest);
+        // printf("Kernel progress-ed.\n");
 
         dplasma_zsyrk_pcctest_Destruct( PARSEC_zsyrk_pcctest );
+        // printf("Kernel destructed.\n");
 
         // printf("printing C\n");
         // dplasma_zprint( parsec, uplo, (parsec_tiled_matrix_t *)&dcC);
+        // printf("freeing A\n");
         parsec_data_free(dcA.mat);
         parsec_tiled_matrix_destroy( (parsec_tiled_matrix_t*)&dcA);
+        // printf("freed A\n");
         parsec_data_free(dcC.mat);
         parsec_tiled_matrix_destroy( (parsec_tiled_matrix_t*)&dcC);
     }

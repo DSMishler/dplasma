@@ -121,7 +121,6 @@ dplasma_zsyrk_pcctest_New( dplasma_enum_t uplo,
                             PARSEC_ARENA_ALIGNMENT_SSE,
                             parsec_datatype_double_complex_t, C->mb );
 
-
     return tp;
 }
 

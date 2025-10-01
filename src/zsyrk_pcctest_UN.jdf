@@ -34,7 +34,7 @@ zsyrk_pcctest(n, k) [ flops = inline_c %{ return FLOPS_ZSYRK(CLEAN_NB(descC, n),
   RW    C    <- ((0==k)) ? descC(n,n)
              <- ((k>=1)) ? C zsyrk_pcctest(n, k-1)
              -> ((descA->nt>=(2+k))) ? C zsyrk_pcctest(n, k+1)
-             -> ((descA->nt==(k+1))) ? descC(n,n)
+             -> ((descA->nt==(k+1))) ? C zsyrk_write_C(n,n)
 
 BODY
 {
@@ -68,9 +68,7 @@ PCC_load_A(n, k) [profile = off]
   : descA(n,k)
 
 RW A <- descA(n,k)
-     -> A zsyrk_pcctest_in_data_A0(n,k)
-     -> A zgemm_in_data_A0(n,k) // TODO: this appears to over-give the data
-     -> B zgemm_in_data_A1(n,k)
+     -> A PCC_preprocess_Ap0(n,k)
 
 // old dependencies from trying to get it to read a full line and sort out
 // over here - for now we're going to just read in the correct file based
@@ -81,12 +79,12 @@ RW A <- descA(n,k)
 BODY
 {
     char fname[100];
-    sprintf(fname, "split_sample_%d_%d.csv", n, k);
+    sprintf(fname, "split_input_data/split_sample_%d_%d.csv", n, k);
     
     int ldam = BLKLDD( descA, m );
     int tempnn = (n == descA->nt-1) ? descA->n - n*descA->nb : descA->nb;
     int tempkn = (k == descA->nt-1) ? descA->n - k*descA->nb : descA->nb;
-    // printf("PCC load n=%d, k=%d, ldam=%d\n", n, k, ldam);
+    printf("PCC load n=%d, k=%d, ldam=%d\n", n, k, ldam);
     // printf("do we have descA->mt & nt? %d %d\n", descA->mt, descA->nt);
     // printf("PCC load tempnn=%d, tempkn=%d\n", tempnn, tempkn);
     // printf("do we have descA->lm & ln? %d %d\n", descA->lm, descA->ln);
@@ -112,6 +110,56 @@ BODY
 END
 
 /*******************************************************************
+ *              PCC_preprocess_Ap0                                  *
+ *******************************************************************/
+PCC_preprocess_Ap0(n, k) [profile = off]
+  /* Execution Space */
+  n = 0..(descC->nt-1)
+  k = 0..(descA->nt-1)
+
+  /* Locality */
+  : descA(n,k)
+
+  READ  A    <- A PCC_load_A(n,k)
+             -> A PCC_preprocess_Ap1(n,k)
+  RW    C    <- (k == 0) ? C PCC_grab_C(n,n)
+             <- (k >  0) ? C PCC_preprocess_Ap0(n,k-1)
+             -> (k != descA->nt-1) ? C PCC_preprocess_Ap0(n,k+1)
+             -> (k == descA->nt-1) ? C PCC_calc_std(n,n)
+  CTL   pass -> (k == descA->nt-1) ? pass PCC_preprocess_Ap1(n,0..descA->nt-1)
+
+BODY
+{
+    printf("preprocess part 0 n=%d k=%d\n", n, k);
+}
+END
+
+/*******************************************************************
+ *              PCC_preprocess_Ap1                                  *
+ *******************************************************************/
+PCC_preprocess_Ap1(n, k) [profile = off]
+  /* Execution Space */
+  n = 0..(descC->nt-1)
+  k = 0..(descA->nt-1)
+
+  /* Locality */
+  : descA(n,k)
+
+  READ  A    <- A PCC_preprocess_Ap0(n,k)
+             -> A zsyrk_pcctest_in_data_A0(n,k)
+             -> A zgemm_in_data_A0(n,k) // TODO: this appears to over-give the data by giving to tasks that don't exist
+             -> B zgemm_in_data_A1(n,k)
+  READ  C    <- C PCC_calc_std(n,n)
+  CTL   pass <- pass PCC_preprocess_Ap0(n, descA->nt-1)
+
+BODY
+{
+    printf("preprocess part 1 n=%d k=%d\n", n, k);
+}
+END
+
+
+/*******************************************************************
  *              zsyrk_pcctest_in_data_A0                           *
  *******************************************************************/
 zsyrk_pcctest_in_data_A0(n, k) [profile = off]
@@ -122,7 +170,7 @@ zsyrk_pcctest_in_data_A0(n, k) [profile = off]
   /* Locality */
   : descA(n,k)
 
-  READ  A    <- A PCC_load_A(n,k)
+  READ  A    <- A PCC_preprocess_Ap1(n,k)
              -> A zsyrk_pcctest(n, k)
 
 BODY
@@ -148,7 +196,7 @@ zgemm(n, m, k) [ flops = inline_c %{ return FLOPS_ZGEMM(CLEAN_NB(descC, n), CLEA
   RW    C    <- ((0==k)) ? descC(n,m)
              <- ((k>=1)) ? C zgemm(n, m, k-1)
              -> ((descA->nt>=(k+2))) ? C zgemm(n, m, k+1)
-             -> ((descA->nt==(k+1))) ? descC(n,m)
+             -> ((descA->nt==(k+1))) ? C zsyrk_write_C(n,m)
 
 BODY
 {
@@ -183,7 +231,7 @@ zgemm_in_data_A1(m, k) [profile = off]
   /* Locality */
   : descA(m,k)
 
-  READ  B    <- A PCC_load_A(m,k)
+  READ  B    <- A PCC_preprocess_Ap1(m,k)
              -> B zgemm(0..(descC->mt-2), m, k)
 
 BODY
@@ -203,11 +251,98 @@ zgemm_in_data_A0(n, k) [profile = off]
   /* Locality */
   : descA(n,k)
 
-  READ  A    <- A PCC_load_A(n,k)
+  READ  A    <- A PCC_preprocess_Ap1(n,k)
              -> A zgemm(n, (n+1)..(descC->mt-1), k)
 
 BODY
 {
     /* nothing */
+}
+END
+
+/*******************************************************************
+ *              zsyrk_write_C                                      *
+ *******************************************************************/
+zsyrk_write_C(n, k) [profile = off]
+  /* Execution Space */
+  n = 0..(descC->mt-1) // mt is the parameter for nrows, but we use n here
+  k = (n)..(descC->nt-1)
+
+  /* Locality */
+  : descC(n,k)
+
+  RW  C    <- (n == k) ? C zsyrk_pcctest(n, descA->nt-1)
+           <- (n < k)  ? C zgemm(n, k, descA->nt-1)
+           -> descC(n,k) // I think this write isn't needed. TODO you can remove this.
+
+BODY
+{
+    int tempnn = (n==(descC->nt-1)) ? (descC->n-(n*descC->nb)) : descC->nb;
+    int tempmm = ((k)==(descC->mt-1)) ? (descC->m-(k*descC->mb)) : descC->mb;
+    int ldcn = BLKLDD( descC, n );
+
+    // printf("zsyrk write C with n=%d k=%d\n", n, k);
+    char fname[100];
+    sprintf(fname, "split_output_data/output_%d_%d.csv", n, k);
+    // printf("writing to `%s`\n", fname);
+    FILE *f;
+    f = fopen(fname, "w");
+
+    // going to just paste the whole thing out, column-major style
+    int i, j;
+    for(i = 0; i < tempnn; i++)
+    {
+        for(j = 0; j < tempmm - 1; j++)
+        {
+            fprintf(f, "%lf,", ((dplasma_complex64_t*)C)[i+j*ldcn]);
+        }
+        fprintf(f, "%lf\n", ((dplasma_complex64_t*)C)[i+j*ldcn]);
+    }
+
+    fclose(f);
+}
+END
+
+
+/*******************************************************************
+ *              PCC_grab_C                                         *
+ *******************************************************************/
+PCC_grab_C(n, k) [profile = off]
+  /* Execution Space */
+  n = 0..(descC->nt-1)
+  k = n
+
+  /* Locality */
+  : descC(n,n)
+
+  READ  C    <- descC(n,n)
+             -> C PCC_preprocess_Ap0(n,0)
+
+BODY
+{
+    /* empty */
+    printf("grab C n=%d k=%d\n", n, k);
+    printf("grab C note: n could get to=%d\n", descC->nt-1);
+}
+END
+
+/*******************************************************************
+ *              PCC_calc_std                                       *
+ *******************************************************************/
+PCC_calc_std(n, k) [profile = off]
+  /* Execution Space */
+  n = 0..(descC->nt-1)
+  k = n
+
+  /* Locality */
+  : descC(n,n)
+
+  RW    C    <- C PCC_preprocess_Ap0(n, descA->nt-1)
+             -> C PCC_preprocess_Ap1(n, 0..descA->nt-1)
+
+BODY
+{
+    /* take the sum of squares, use the sum, and calculate standard deviation*/
+    printf("calc std n=%d k=%d\n", n, k);
 }
 END
