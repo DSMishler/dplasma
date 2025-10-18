@@ -2,9 +2,10 @@
  * Copyright (c) 2009-2024 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
- *
+ */
+
+/*
  * @precisions normal z -> z c
- *
  */
 
 #include "common.h"
@@ -57,6 +58,8 @@ int main(int argc, char ** argv)
                                        rank, MB, NB, N, N, 0, 0,
                                        N, N, P, nodes/P, uplo));
 
+        printf("size_n: %d\n", N);
+        printf("size_k: %d\n", K);
         /* matrix generation */
         if(loud > 2) printf("+++ Generate matrices ... ");
         dplasma_zplrnt( parsec, 0, (parsec_tiled_matrix_t *)&dcA,  Aseed);

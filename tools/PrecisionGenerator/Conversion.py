@@ -280,7 +280,7 @@ class Conversion:
         raise ValueError('I encountered an unrecoverable error while working in subtype:',sub_type+'.');
     """Replace the replacement keywork with one that signifies this is an output file,
     to prevent multiple replacement issues if run again."""
-    data = re.sub(KEYWORD+' '+','.join(self.types)+'.*', DONE_KEYWORD+' '+precision+' '+datetime.now().ctime(), data);
+    data = re.sub(KEYWORD+' '+','.join(self.types)+'.*', DONE_KEYWORD+' '+precision+' '+datetime.now().ctime()+' from '+str(self.file), data);
     return data;
 
 ## @}
