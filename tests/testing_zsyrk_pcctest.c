@@ -35,6 +35,11 @@ int main(int argc, char ** argv)
     iparam_default_gemm(iparam);
     iparam_default_ibnbmb(iparam, 0, 200, 200);
 
+    // create the output file now
+    FILE *f = fopen("split_output_data/PCC_output.csv", "w");
+    fclose(f);
+
+
     /* Initialize PaRSEC */
     parsec = setup_parsec(argc, argv, iparam);
     PASTE_CODE_IPARAM_LOCALS(iparam);
@@ -70,13 +75,13 @@ int main(int argc, char ** argv)
         // printf("kernel loaded!\n");
         // printf("generating matrices!\n");
         if(loud > 2) printf("+++ Generate matrices ... ");
-        void matrix_stats(parsec_tiled_matrix_t * pdcA)
-        {
-            printf("matrix stats for matrix\n");
-            printf("lm: %d\n", pdcA->lm);
-            printf("ln: %d\n", pdcA->ln);
-            return;
-        }
+        // void matrix_stats(parsec_tiled_matrix_t * pdcA)
+        // {
+            // printf("matrix stats for matrix\n");
+            // printf("lm: %d\n", pdcA->lm);
+            // printf("ln: %d\n", pdcA->ln);
+            // return;
+        // }
         dplasma_zplrnt( parsec, 0, (parsec_tiled_matrix_t *)&dcA,  Aseed);
         // printf("generated A! Now C...\n");
         // matrix_stats((parsec_tiled_matrix_t *)&dcA);

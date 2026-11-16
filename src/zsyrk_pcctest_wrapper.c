@@ -85,6 +85,7 @@ dplasma_zsyrk_pcctest_New( dplasma_enum_t uplo,
                    dplasma_complex64_t beta,
                    parsec_tiled_matrix_t* C)
 {
+    printf("PARSEC wrapper running ('New' func)\n");
     parsec_taskpool_t* tp;
 
     if ( uplo == dplasmaLower ) {
@@ -222,6 +223,7 @@ dplasma_zsyrk_pcctest( parsec_context_t *parsec,
                dplasma_complex64_t beta,
                parsec_tiled_matrix_t *C)
 {
+    printf("PARSEC wrapper running (shorter func)\n");
     parsec_taskpool_t *parsec_zsyrk_pcctest = NULL;
 
     /* Check input arguments */
