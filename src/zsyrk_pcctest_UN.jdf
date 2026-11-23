@@ -463,27 +463,55 @@ BODY
     // +0.000,-0.876,+0.987,-0.111,...
     // 1234567123456712345671234567
     char *s_tofile;
-    int file_offset;
+    long int file_offset;
     s_tofile = malloc(7*tempnn+1); // one more for string terminator
 
-    for(i = 0; i < tempnn; i++)
+
+    // now, we'll be getting the UPPER triangle with the tiles we have,
+    // but I'll be writing it TRANSPOSED to the LOWER triangle because
+    // that's easier with a file
+    // [[i=0,j=0], [i=0,j=1],
+    //  [i=1,j=0], [i=1,j=1]]
+    // And note: dplasma is column-major, so just iterating through i gets you
+    // the column, but we'll write it as a row
+
+    for(j = 0; j < tempmm; j++)
     {
-        // printf("i=%d\n", i);
+        printf("n=%d, k=%d, j=%d\n", n, k, j);
+        // if (n!=0 || k!=1)
+        // {
+            // break;
+        // }
         s_tofile[0] = '\0';
 
-        for(j = 0; j < tempmm - 1; j++)
+        if(n != k)
         {
-            sprintf(s_tofile+7*j, "%+.3lf,", ((dplasma_complex64_t*)C)[i+j*ldcn]);
-        }
-        sprintf(s_tofile+7*j, "%+.3lf", ((dplasma_complex64_t*)C)[i+j*ldcn]);
-        if (k == descC->nt-1)
-        {
-            sprintf(s_tofile+7*j+6, "\n");
+            // TODO: careful, we aren't guaranteed that all tiles are square
+            // then write everything
+            for(i = 0; i < tempnn-1; i++)
+            {
+                sprintf(s_tofile+7*j, "%+.3lf,", ((dplasma_complex64_t*)C)[i+j*ldcn]);
+            }
         }
         else
         {
-            sprintf(s_tofile+7*j+6, ",");
+            // n == k, so we only write up to the diagonal, where i == j
+            for(i = 0; i < j; i++)
+            {
+                sprintf(s_tofile+7*i, "%+.3lf,", ((dplasma_complex64_t*)C)[i+j*ldcn]);
+            }
         }
+        // last one (we intentionally used bounds minus 1 up above)
+        sprintf(s_tofile+7*i, "%+.3lf", ((dplasma_complex64_t*)C)[i+j*ldcn]);
+        if (n == k)
+        {
+            sprintf(s_tofile+7*i+6, "\n");
+        }
+        else
+        {
+            sprintf(s_tofile+7*i+6, ",");
+        }
+        i++;
 
         file_offset = 7*((descC->n*(descC->mb*n+i)) + (descC->nb*k));
         // 7: number of characters per entry
@@ -493,7 +521,23 @@ BODY
         // descC->nb*k: number of columns per tile times which tile we're on
         //              (no need to add j)
 
-        pwrite(fd, s_tofile, 7*tempnn, file_offset);
+        // long int which_row = (descC->mb*n+j); // this is which row in C
+        // descC->mb*n gives me which row I started on, then add j to
+        // get current row (would be column in the tile, but remember
+        // we transposed).
+
+        long int which_col = (descC->nb*k+j); // this is which col in C
+        // descC->nb*k gives me which col I started on, then add j to
+        // get current col (would be column in the tile, but remember
+        // we transposed) and want this to be a row in the file
+
+        file_offset = 7*( ((which_col)*(which_col+1)/2) + descC->mb*n);
+        // using the triangle (n)(n+1)/2 to get offset up to my row,
+        // then just adding descC->nb*k to get which column I'd be on
+
+        printf("writing of length %d to offset entry %ld\n", i, file_offset/7);
+
+        pwrite(fd, s_tofile, 7*i, file_offset);
     }
 
     free(s_tofile);
