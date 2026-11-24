@@ -42,14 +42,17 @@ BODY
 {
     if (k == 0)
     {
-        FILE *f;
-        char fname[100];
-        sprintf(fname, "split_timing_data/compute_begin_%d_%d.time", n, n);
-        f = fopen(fname, "w");
+        FILE *ft;
+        ft = fopen("timing_data/compute_begin.txt", "r+");
+        int ftd = fileno(ft);
         struct timeval t;
         gettimeofday(&t, NULL);
-        fprintf(f, "%ld.%ld", t.tv_sec, t.tv_usec);
-        fclose(f);
+        int which_entry=((n*(n+1))/2)+n;
+        char timing_infobuf[64];
+        int entrylen=2+4+3+4+1+10+1+6+1;
+        sprintf(timing_infobuf, "n=%04d,m=%04d:%010ld.%06ld\n", n, n, t.tv_sec, t.tv_usec);
+        pwrite(ftd, timing_infobuf, entrylen, which_entry*entrylen);
+        fclose(ft);
     }
     int tempnn = (n==(descC->nt-1)) ? (descC->n-(n*descC->nb)) : descC->nb;
     int tempkn = (k==(descA->nt-1)) ? (descA->n-(k*descA->nb)) : descA->nb;
@@ -67,14 +70,17 @@ BODY
     // ((dplasma_complex64_t *)C)[0] = 2.0; // signal of victory
     if (k == descA->nt-1)
     {
-        FILE *f;
-        char fname[100];
-        sprintf(fname, "split_timing_data/compute_end_%d_%d.time", n, n);
-        f = fopen(fname, "w");
         struct timeval t;
         gettimeofday(&t, NULL);
-        fprintf(f, "%ld.%ld", t.tv_sec, t.tv_usec);
-        fclose(f);
+        FILE *ft;
+        ft = fopen("timing_data/compute_end.txt", "r+");
+        int ftd = fileno(ft);
+        int which_entry=((n*(n+1))/2)+n;
+        char timing_infobuf[64];
+        int entrylen=2+4+3+4+1+10+1+6+1;
+        sprintf(timing_infobuf, "n=%04d,m=%04d:%010ld.%06ld\n", n, n, t.tv_sec, t.tv_usec);
+        pwrite(ftd, timing_infobuf, entrylen, which_entry*entrylen);
+        fclose(ft);
     }
 }
 END
@@ -105,17 +111,17 @@ BODY
     if (1) // always do this
     {
         FILE *ft;
-        char fname[100];
-        sprintf(fname, "split_timing_data/input_begin_%d_%d.time", n, k);
-        ft = fopen(fname, "w");
-        if (ft == NULL)
-        {
-            printf("error: file '%s' not found\n", fname);
-        }
+        ft = fopen("timing_data/input_begin.txt", "r+");
+        int ftd = fileno(ft);
         struct timeval t;
         gettimeofday(&t, NULL);
-        fprintf(ft, "%ld.%ld", t.tv_sec, t.tv_usec);
+        int which_entry=(n*descA->nt-1)+k;
+        char timing_infobuf[64];
+        int entrylen=2+4+3+4+1+10+1+6+1;
+        sprintf(timing_infobuf, "n=%04d,k=%04d:%010ld.%06ld\n", n, k, t.tv_sec, t.tv_usec);
+        pwrite(ftd, timing_infobuf, entrylen, which_entry*entrylen);
         fclose(ft);
+
     }
     char fname[100];
     sprintf(fname, "split_input_data/split_sample_%d_%d.csv", n, k);
@@ -130,6 +136,10 @@ BODY
     // printf("do we have descA->lm & ln? %d %d\n", descA->lm, descA->ln);
     FILE *f;
     f = fopen(fname, "r");
+    if (f == NULL)
+    {
+        printf("ERROR: failed to load '%s'\n", fname);
+    }
     int i, j;
     int fsfrv;
     for(i = 0; i < tempnn; i++)
@@ -148,13 +158,16 @@ BODY
     // printf("Load A! This should load A(%d,%d)\n", n, k);
     if (1) // always do this
     {
-        FILE *ft;
-        char fname[100];
-        sprintf(fname, "split_timing_data/input_end_%d_%d.time", n, k);
-        ft = fopen(fname, "w");
         struct timeval t;
         gettimeofday(&t, NULL);
-        fprintf(ft, "%ld.%ld", t.tv_sec, t.tv_usec);
+        FILE *ft;
+        ft = fopen("timing_data/input_end.txt", "r+");
+        int ftd = fileno(ft);
+        int which_entry=(n*descA->nt-1)+k;
+        char timing_infobuf[64];
+        int entrylen=2+4+3+4+1+10+1+6+1;
+        sprintf(timing_infobuf, "n=%04d,k=%04d:%010ld.%06ld\n", n, k, t.tv_sec, t.tv_usec);
+        pwrite(ftd, timing_infobuf, entrylen, which_entry*entrylen);
         fclose(ft);
     }
 }
@@ -190,16 +203,19 @@ BODY
     int tempkn = (k == descA->nt-1) ? descA->n - k*descA->nb : descA->nb;
 
     int i, j;
-    if (k == 0)
+    if (1) //always do this, don't just do when k==0
     {
-        FILE *f;
-        char fname[100];
-        sprintf(fname, "split_timing_data/preprocess_begin_%d_%d.time", n, k);
-        f = fopen(fname, "w");
+        FILE *ft;
+        ft = fopen("timing_data/preprocess_begin.txt", "r+");
+        int ftd = fileno(ft);
         struct timeval t;
         gettimeofday(&t, NULL);
-        fprintf(f, "%ld.%ld", t.tv_sec, t.tv_usec);
-        fclose(f);
+        int which_entry=(n*descA->nt-1)+k;
+        char timing_infobuf[64];
+        int entrylen=2+4+3+4+1+10+1+6+1;
+        sprintf(timing_infobuf, "n=%04d,k=%04d:%010ld.%06ld\n", n, k, t.tv_sec, t.tv_usec);
+        pwrite(ftd, timing_infobuf, entrylen, which_entry*entrylen);
+        fclose(ft);
     }
 
     if (k == 0)
@@ -267,14 +283,17 @@ BODY
     }
     if (1) // always do this
     {
-        FILE *f;
-        char fname[100];
-        sprintf(fname, "split_timing_data/preprocess_end_%d_%d.time", n, k);
-        f = fopen(fname, "w");
         struct timeval t;
         gettimeofday(&t, NULL);
-        fprintf(f, "%ld.%ld", t.tv_sec, t.tv_usec);
-        fclose(f);
+        FILE *ft;
+        ft = fopen("timing_data/preprocess_end.txt", "r+");
+        int ftd = fileno(ft);
+        int which_entry=(n*descA->nt-1)+k;
+        char timing_infobuf[64];
+        int entrylen=2+4+3+4+1+10+1+6+1;
+        sprintf(timing_infobuf, "n=%04d,k=%04d:%010ld.%06ld\n", n, k, t.tv_sec, t.tv_usec);
+        pwrite(ftd, timing_infobuf, entrylen, which_entry*entrylen);
+        fclose(ft);
     }
 }
 END
@@ -323,14 +342,17 @@ BODY
 {
     if (k == 0)
     {
-        FILE *f;
-        char fname[100];
-        sprintf(fname, "split_timing_data/compute_begin_%d_%d.time", n, m);
-        f = fopen(fname, "w");
+        FILE *ft;
+        ft = fopen("timing_data/compute_begin.txt", "r+");
+        int ftd = fileno(ft);
         struct timeval t;
         gettimeofday(&t, NULL);
-        fprintf(f, "%ld.%ld", t.tv_sec, t.tv_usec);
-        fclose(f);
+        int which_entry=((m*(m+1))/2)+n;
+        char timing_infobuf[64];
+        int entrylen=2+4+3+4+1+10+1+6+1;
+        sprintf(timing_infobuf, "n=%04d,m=%04d:%010ld.%06ld\n", n, m, t.tv_sec, t.tv_usec);
+        pwrite(ftd, timing_infobuf, entrylen, which_entry*entrylen);
+        fclose(ft);
     }
     int tempnn = (n==(descC->nt-1)) ? (descC->n-(n*descC->nb)) : descC->nb;
     int tempmm = ((m)==(descC->mt-1)) ? (descC->m-(m*descC->mb)) : descC->mb;
@@ -351,14 +373,17 @@ BODY
                ldcn );
     if (k == descA->nt-1)
     {
-        FILE *f;
-        char fname[100];
-        sprintf(fname, "split_timing_data/compute_end_%d_%d.time", n, m);
-        f = fopen(fname, "w");
         struct timeval t;
         gettimeofday(&t, NULL);
-        fprintf(f, "%ld.%ld", t.tv_sec, t.tv_usec);
-        fclose(f);
+        FILE *ft;
+        ft = fopen("timing_data/compute_end.txt", "r+");
+        int ftd = fileno(ft);
+        int which_entry=((m*(m+1))/2)+n;
+        char timing_infobuf[64];
+        int entrylen=2+4+3+4+1+10+1+6+1;
+        sprintf(timing_infobuf, "n=%04d,m=%04d:%010ld.%06ld\n", n, m, t.tv_sec, t.tv_usec);
+        pwrite(ftd, timing_infobuf, entrylen, which_entry*entrylen);
+        fclose(ft);
     }
 }
 END
@@ -423,12 +448,15 @@ BODY
     if (1) // always do this
     {
         FILE *ft;
-        char fname[100];
-        sprintf(fname, "split_timing_data/output_begin_%d_%d.time", n, k);
-        ft = fopen(fname, "w");
+        ft = fopen("timing_data/output_begin.txt", "r+");
+        int ftd = fileno(ft);
         struct timeval t;
         gettimeofday(&t, NULL);
-        fprintf(ft, "%ld.%ld", t.tv_sec, t.tv_usec);
+        int which_entry=((k*(k+1))/2)+n;
+        char timing_infobuf[64];
+        int entrylen=2+4+3+4+1+10+1+6+1;
+        sprintf(timing_infobuf, "n=%04d,k=%04d:%010ld.%06ld\n", n, k, t.tv_sec, t.tv_usec);
+        pwrite(ftd, timing_infobuf, entrylen, which_entry*entrylen);
         fclose(ft);
     }
     int tempnn = (n==(descC->nt-1)) ? (descC->n-(n*descC->nb)) : descC->nb;
@@ -437,26 +465,25 @@ BODY
     // printf("n=%d,tempnn=%d\n", n, tempnn);
     // printf("k=%d,tempmm=%d\n", k, tempmm);
 
-    // printf("zsyrk write C with n=%d k=%d\n", n, k);
-    char fname[100];
-    sprintf(fname, "split_output_data/output_%d_%d.csv", n, k);
-    // printf("writing to `%s`\n", fname);
-    int i, j;
+    // // printf("zsyrk write C with n=%d k=%d\n", n, k);
+    // char fname[100];
+    // sprintf(fname, "split_output_data/output_%d_%d.csv", n, k);
+    // // printf("writing to `%s`\n", fname);
+    // f = fopen(fname, "w");
+    // for(i = 0; i < tempnn; i++)
+    // {
+        // for(j = 0; j < tempmm - 1; j++)
+        // {
+            // fprintf(f, "%.3lf,", ((dplasma_complex64_t*)C)[i+j*ldcn]);
+        // }
+        // fprintf(f, "%.3lf\n", ((dplasma_complex64_t*)C)[i+j*ldcn]);
+    // }
+
+    // fclose(f);
+
     FILE *f;
-    f = fopen(fname, "w");
-
-    for(i = 0; i < tempnn; i++)
-    {
-        for(j = 0; j < tempmm - 1; j++)
-        {
-            fprintf(f, "%.3lf,", ((dplasma_complex64_t*)C)[i+j*ldcn]);
-        }
-        fprintf(f, "%.3lf\n", ((dplasma_complex64_t*)C)[i+j*ldcn]);
-    }
-
-    fclose(f);
-
-    f = fopen("split_output_data/PCC_output.csv", "r+");
+    int i, j;
+    f = fopen("output_data/PCC_output.csv", "r+");
     int fd = fileno(f);
 
     // one "line" is 7 times the tilesize
@@ -477,11 +504,7 @@ BODY
 
     for(j = 0; j < tempmm; j++)
     {
-        printf("n=%d, k=%d, j=%d\n", n, k, j);
-        // if (n!=0 || k!=1)
-        // {
-            // break;
-        // }
+        // printf("n=%d, k=%d, j=%d\n", n, k, j);
         s_tofile[0] = '\0';
 
         if(n != k)
@@ -490,7 +513,7 @@ BODY
             // then write everything
             for(i = 0; i < tempnn-1; i++)
             {
-                sprintf(s_tofile+7*j, "%+.3lf,", ((dplasma_complex64_t*)C)[i+j*ldcn]);
+                sprintf(s_tofile+7*i, "%+.3lf,", ((dplasma_complex64_t*)C)[i+j*ldcn]);
             }
         }
         else
@@ -513,29 +536,16 @@ BODY
         }
         i++;
 
-        file_offset = 7*((descC->n*(descC->mb*n+i)) + (descC->nb*k));
-        // 7: number of characters per entry
-        // descC->n: number of entries per row
-        // descC->mb*n: number of rows per tile times which tile we're on
-        //              then add i to get our row
-        // descC->nb*k: number of columns per tile times which tile we're on
-        //              (no need to add j)
-
-        // long int which_row = (descC->mb*n+j); // this is which row in C
-        // descC->mb*n gives me which row I started on, then add j to
-        // get current row (would be column in the tile, but remember
-        // we transposed).
-
         long int which_col = (descC->nb*k+j); // this is which col in C
         // descC->nb*k gives me which col I started on, then add j to
         // get current col (would be column in the tile, but remember
         // we transposed) and want this to be a row in the file
 
-        file_offset = 7*( ((which_col)*(which_col+1)/2) + descC->mb*n);
+        file_offset = 7*( (((which_col)*(which_col+1))/2) + descC->mb*n);
         // using the triangle (n)(n+1)/2 to get offset up to my row,
         // then just adding descC->nb*k to get which column I'd be on
 
-        printf("writing of length %d to offset entry %ld\n", i, file_offset/7);
+        // printf("writing of length %d to offset entry %ld\n", i, file_offset/7);
 
         pwrite(fd, s_tofile, 7*i, file_offset);
     }
@@ -548,13 +558,16 @@ BODY
 
     if (1) // always do this
     {
-        FILE *ft;
-        char fname[100];
-        sprintf(fname, "split_timing_data/output_end_%d_%d.time", n, k);
-        ft = fopen(fname, "w");
         struct timeval t;
         gettimeofday(&t, NULL);
-        fprintf(ft, "%ld.%ld", t.tv_sec, t.tv_usec);
+        FILE *ft;
+        ft = fopen("timing_data/output_end.txt", "r+");
+        int ftd = fileno(ft);
+        int which_entry=((k*(k+1))/2)+n;
+        char timing_infobuf[64];
+        int entrylen=2+4+3+4+1+10+1+6+1;
+        sprintf(timing_infobuf, "n=%04d,k=%04d:%010ld.%06ld\n", n, k, t.tv_sec, t.tv_usec);
+        pwrite(ftd, timing_infobuf, entrylen, which_entry*entrylen);
         fclose(ft);
     }
 

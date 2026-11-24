@@ -36,7 +36,24 @@ int main(int argc, char ** argv)
     iparam_default_ibnbmb(iparam, 0, 200, 200);
 
     // create the output file now
-    FILE *f = fopen("split_output_data/PCC_output.csv", "w");
+    FILE *f = fopen("output_data/PCC_output.csv", "w");
+    fclose(f);
+    // and timing files
+    f = fopen("timing_data/compute_begin.txt", "w");
+    fclose(f);
+    f = fopen("timing_data/input_begin.txt", "w");
+    fclose(f);
+    f = fopen("timing_data/output_begin.txt", "w");
+    fclose(f);
+    f = fopen("timing_data/preprocess_begin.txt", "w");
+    fclose(f);
+    f = fopen("timing_data/compute_end.txt", "w");
+    fclose(f);
+    f = fopen("timing_data/input_end.txt", "w");
+    fclose(f);
+    f = fopen("timing_data/output_end.txt", "w");
+    fclose(f);
+    f = fopen("timing_data/preprocess_end.txt", "w");
     fclose(f);
 
 
@@ -48,6 +65,16 @@ int main(int argc, char ** argv)
     // printf("NB MB? %d %d\n", NB, MB);
     M = N;
     LDC = max(LDC, N);
+
+    if(N/NB>9999)
+    {
+        printf("error: the jdf assumes nt<=9999, but N=%d\n", N);
+    }
+    if(M/MB>9999)
+    {
+        printf("error: the jdf assumes mt<=9999, but M=%d\n", N);
+    }
+
 
 
     if(!check)
