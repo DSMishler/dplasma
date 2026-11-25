@@ -85,6 +85,7 @@ BODY
 }
 END
 
+
 /*******************************************************************
  *              PCC_load_A                                         *
  *******************************************************************/
@@ -123,10 +124,9 @@ BODY
         fclose(ft);
 
     }
-    char fname[100];
-    sprintf(fname, "split_input_data/split_sample_%d_%d.csv", n, k);
-    
-    int ldam = BLKLDD( descA, m ); // TODO: ldam or ldan? Likewise in preprocess
+
+
+    // int ldam = BLKLDD( descA, m ); // TODO: ldam or ldan? Likewise in preprocess
     // int ldan = BLKLDD( descA, n ); // TODO: ldam or ldan? Likewise in preprocess
     int tempnn = (n == descA->nt-1) ? descA->n - n*descA->nb : descA->nb;
     int tempkn = (k == descA->nt-1) ? descA->n - k*descA->nb : descA->nb;
@@ -135,26 +135,45 @@ BODY
     // printf("PCC load tempnn=%d, tempkn=%d\n", tempnn, tempkn);
     // printf("do we have descA->lm & ln? %d %d\n", descA->lm, descA->ln);
     FILE *f;
-    f = fopen(fname, "r");
-    if (f == NULL)
-    {
-        printf("ERROR: failed to load '%s'\n", fname);
-    }
-    int i, j;
-    int fsfrv;
-    for(i = 0; i < tempnn; i++)
-    {
-        for(j = 0; j < tempkn; j++)
-        {
-            fsfrv = fscanf(f, "%lf,", (&(((dplasma_complex64_t*)A)[i+ldam*j])));
-        }
-    }
 
-    if (fsfrv == 0)
-    {
-        ; // keep compilers happy
-    }
+    // char fname[100];
+    // sprintf(fname, "split_input_data/split_sample_%d_%d.csv", n, k);
+    
+    // f = fopen(fname, "r");
+    // if (f == NULL)
+    // {
+        // printf("ERROR: failed to load '%s'\n", fname);
+    // }
+    // int i, j;
+    // int fsfrv;
+    // for(i = 0; i < tempnn; i++)
+    // {
+        // for(j = 0; j < tempkn; j++)
+        // {
+            // fsfrv = fscanf(f, "%lf,", (&(((dplasma_complex64_t*)A)[i+ldam*j])));
+        // }
+    // }
+    // if (fsfrv == 0)
+    // {
+        // ; // keep compilers happy
+    // }
+    // for(i = 0; i < 300; i += 77)
+        // printf("TESTING: A[%d] = %lf\n", i, ((dplasma_complex64_t*)A)[i]);
+    // fclose(f);
+
+    
+    f = fopen("PCC_data.bytes", "r");
+    int fd = fileno(f);
+    long int init_offset = (descA->n*n*descA->mb + k*tempnn*descA->nb);
+    // total number of columns in descA times my tile * number of rows per tile
+    // plus my column tile times number of elements per column tile in my row
+    // pread(fd, &(((dplasma_complex64_t*)A)[init_offset]), tempnn*tempkn*8, 0);
+    // actually that won't work because A is the dest and it's set per MPI rank!
+    // alternatively:
+    pread(fd, A, tempnn*tempkn*8, init_offset*8);
     fclose(f);
+
+
     // printf("Load A! This should load A(%d,%d)\n", n, k);
     if (1) // always do this
     {

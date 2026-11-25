@@ -41,6 +41,8 @@ int main(int argc, char ** argv)
     // and timing files
     f = fopen("timing_data/compute_begin.txt", "w");
     fclose(f);
+    f = fopen("timing_data/preread_begin.txt", "w");
+    fclose(f);
     f = fopen("timing_data/input_begin.txt", "w");
     fclose(f);
     f = fopen("timing_data/output_begin.txt", "w");
@@ -48,6 +50,8 @@ int main(int argc, char ** argv)
     f = fopen("timing_data/preprocess_begin.txt", "w");
     fclose(f);
     f = fopen("timing_data/compute_end.txt", "w");
+    fclose(f);
+    f = fopen("timing_data/preread_end.txt", "w");
     fclose(f);
     f = fopen("timing_data/input_end.txt", "w");
     fclose(f);
